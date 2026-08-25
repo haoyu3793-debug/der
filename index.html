@@ -1071,9 +1071,10 @@
           has roamed these 1,750 acres since 1662.
         </p>
         <p class="hero-note">
-          Sightings you post are saved on this device only — nobody else can
-          see them yet. An independent student project — not affiliated
-          with the OPW or the official management of Phoenix Park.
+          Sightings you post are visible to everyone who opens this page.
+          Ratings are still saved on your device only. An independent student
+          project — not affiliated with the OPW or the official management of
+          Phoenix Park.
         </p>
         <button class="hero-cta" onclick="document.getElementById('sightingModal').classList.add('show')">
           Log a sighting →
@@ -1086,7 +1087,7 @@
       <div class="section-head">
         <div>
           <h2>Today at a glance</h2>
-          <p class="section-sub">Your totals — counted from the sightings saved in this browser</p>
+          <p class="section-sub">Counted from every sighting anyone has logged</p>
         </div>
       </div>
 
@@ -1167,7 +1168,7 @@
       <div class="section-head">
         <div>
           <h2>Latest sightings</h2>
-          <p class="section-sub">Sightings saved in this browser</p>
+          <p class="section-sub">The latest sightings, from everyone</p>
         </div>
       </div>
 
@@ -1465,58 +1466,72 @@
 
       const allSightings = [];
 var KEY = 'ppdt_sightings';
+// ===================================================================
+// Talking to the server
+//
+// Sightings used to live in localStorage, which meant they lived in one
+// browser on one device: you could post something and nobody else could ever
+// see it. They now live in a database on the server, so everybody who opens
+// the site sees the same list.
+//
+// The one thing still kept in this browser is the set of delete keys - the
+// secrets that prove a sighting was posted from here. They must never be
+// shared, which is exactly why they are the one thing that stays local.
+// ===================================================================
 
-function saveSightings() {
-  var plain = allSightings.map(function (s) {
-    return {
-      id: s.id,
-      lat: s.lat, lng: s.lng, location: s.location, group: s.group,
-      count: s.count, user: s.user, note: s.note,
-      photo: s.photo, when: s.when,
-      // Carry the sample flag through storage. Drop it here and the samples
-      // quietly become real entries the next time the page loads.
-      demo: s.demo === true ? true : undefined
-    };
-  });
+var API = "/api/sightings";
+var KEYS = "ppdt_delete_keys";
+
+// { sightingId: deleteKey }. Lose this and you can no longer delete the
+// sightings you posted - the deliberate trade for having no accounts, no
+// passwords and no email addresses anywhere in this project.
+function readKeys() {
   try {
-    localStorage.setItem(KEY, JSON.stringify(plain));
+    return JSON.parse(localStorage.getItem(KEYS) || "{}") || {};
   } catch (e) {
-    if (e.name === 'QuotaExceededError')
-      toast('Storage is full — older sightings may not be saved.');
+    return {};
   }
 }
 
-// Returning null here means "nothing saved" and the caller falls back to the
-// sample sightings. Every failure below has to return null rather than throw:
-// this function runs before the map is populated, so anything it throws takes
-// the whole page down with it and the visitor gets a blank site.
-function loadSightings() {
-  var raw;
+function rememberKey(id, key) {
   try {
-    raw = localStorage.getItem(KEY);
+    var all = readKeys();
+    all[id] = key;
+    localStorage.setItem(KEYS, JSON.stringify(all));
   } catch (e) {
-    // Some browsers block storage completely - strict privacy settings, and
-    // some private-browsing modes. Reading it THROWS rather than returning
-    // null. The site still has to work; it just cannot remember anything.
-    return null;
-  }
-  if (!raw) return null;
-
-  try {
-    var arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return null;      // something else wrote to our key
-    arr.forEach(function (s) {
-      s.when = new Date(s.when);
-      if (!s.id) s.id = makeId();   // data saved before ids existed
-    });
-    return arr;
-  } catch (e) {
-    // Corrupted storage. Without this catch the page stayed permanently blank
-    // and the only way out was clearing site data by hand - which no ordinary
-    // visitor would ever think to do.
-    return null;
+    // Storage blocked or full. The sighting is posted and everybody can see
+    // it - this browser just will not be able to delete it later.
+    toast("Posted, but this browser could not remember the delete key.");
   }
 }
+
+function forgetKey(id) {
+  try {
+    var all = readKeys();
+    delete all[id];
+    localStorage.setItem(KEYS, JSON.stringify(all));
+  } catch (e) {}
+}
+
+// The server speaks in plain column names; the page has always used slightly
+// different ones. Translate in one place rather than renaming everything.
+function fromServer(row) {
+  return {
+    id: row.id,
+    lat: row.lat,
+    lng: row.lng,
+    location: row.location,
+    group: row.species,
+    count: row.count,
+    user: row.author,
+    note: row.note || "",
+    photo: row.photo || null,
+    when: new Date(row.seen_at),
+    mine: !!readKeys()[row.id]      // did this browser post it?
+  };
+}
+
+
 
 
       const markerLayer = L.featureGroup().addTo(map);
@@ -1588,7 +1603,9 @@ function loadSightings() {
 
       function addSighting(s, opts) {
         opts = opts || {};
-        if (!s.id) s.id = makeId();
+        // Ids come from the server now: it is the only place that can promise
+        // they are unique across everybody's browsers.
+        if (!s.id) { console.error("addSighting called without an id", s); return; }
         const m = L.marker([s.lat, s.lng], { icon: sightingIcon }).addTo(markerLayer);
         m.bindPopup(renderSightingPopup(s));
         s._marker = m;
@@ -1600,13 +1617,15 @@ function loadSightings() {
         if (opts.notify) {
           toast(
             s.group + " × " + s.count + " · " + s.location,
-            '<div style="opacity:.85;font-size:.85rem;margin-top:2px">Saved to this browser</div>'
+            '<div style="opacity:.85;font-size:.85rem;margin-top:2px">Everyone can see it now</div>'
           );
         }
         if (opts.flash) m.openPopup();
 
-        // Write the whole list to storage every time it changes.
-        saveSightings();
+        // Nothing is written here any more. Putting a sighting on the page and
+        // sending it to the server are two separate jobs; the form handler does
+        // the second, because it is the only place that knows whether this is a
+        // brand-new sighting or one the server just sent us.
       }
 
       // 5 sample sightings, shown so the map is not blank for a first-time
@@ -1658,10 +1677,36 @@ function loadSightings() {
       // Restore what was saved last time. First visit -> fall back to seed.
       // .slice() copies before .reverse(), which would otherwise reorder the
       // original array in place; the .reverse() itself cancels out unshift().
-      var restored = loadSightings();
-      (restored || seed).slice().reverse().forEach(function (s) {
-        addSighting(s, { notify: false });
-      });
+      // Load everybody's sightings. This is the line where the site stopped
+      // being one person's notebook.
+      function loadFromServer() {
+        return fetch(API, { headers: { accept: "application/json" } })
+          .then(function (res) {
+            if (!res.ok) throw new Error("server said " + res.status);
+            return res.json();
+          })
+          .then(function (data) {
+            // Oldest first: addSighting() puts each one on the front.
+            (data.sightings || []).map(fromServer).reverse()
+              .forEach(function (s) { addSighting(s, { notify: false }); });
+            renderFeed();
+            refreshStats();
+          })
+          .catch(function (err) {
+            // Say something. A blank map with no explanation looks exactly like
+            // "nobody has logged anything yet", and those are very different.
+            var list = document.getElementById("feedList");
+            if (list) {
+              list.innerHTML =
+                '<article class="feed-card feed-empty"><div class="body">' +
+                "<h4>Could not reach the server</h4>" +
+                '<p class="note">The sightings live on a server and this browser ' +
+                "cannot get to it. Check your connection and reload. (" +
+                esc(err.message) + ")</p></div></article>";
+            }
+          });
+      }
+      loadFromServer();
 
       // Re-format times every minute so freshness pills keep accurate
       setInterval(() => {
@@ -1717,11 +1762,13 @@ function loadSightings() {
               (s.note ? '<p class="note">' + esc(s.note) + "</p>" : "") +
               // the photo goes INSIDE the card body, after the note
               (s.photo ? '<img class="feed-photo" alt="Photo of this sighting" src="' + esc(s.photo) + '">' : '') +
-              // The timestamp is the closest thing a sighting has to a name.
-              // Its position in the array is not: the list is re-sorted and
-              // re-rendered constantly, so index 3 is a different row a moment later.
-              '<button class="feed-del" type="button" data-id="' + esc(s.id) +
-              '" aria-label="Remove this sighting">Remove</button>' +
+              // Only your own sightings get a Remove button. Everyone can see
+              // everything now, so a button on somebody else's would either be a
+              // lie (the server would refuse) or a way to vandalise their entry.
+              (s.mine
+                ? '<button class="feed-del" type="button" data-id="' + esc(s.id) +
+                  '" aria-label="Remove this sighting">Remove</button>'
+                : "") +
               "</div></article>"
             );
           })
@@ -1751,22 +1798,42 @@ function loadSightings() {
         const btn = e.target.closest(".feed-del");
         if (!btn) return;
 
-        if (!confirm("Remove this sighting? It is only stored in this browser, and this cannot be undone.")) return;
-
         const id = btn.dataset.id;
+        const key = readKeys()[id];
+        if (!key) {
+          toast("You can only remove sightings you posted from this browser.");
+          return;
+        }
+
+        if (!confirm("Remove this sighting? It disappears for everyone, and this cannot be undone.")) return;
+
         const i = allSightings.findIndex(function (s) { return s.id === id; });
         if (i < 0) return;
 
-        // A sighting lives in four places. Delete has to undo all four, and only
-        // one of them survives a reload - miss saveSightings() and the row comes
-        // back the next time the page loads.
-        if (allSightings[i]._marker) markerLayer.removeLayer(allSightings[i]._marker);  // 1. the map pin
-        allSightings.splice(i, 1);                                                      // 2. the array
-        saveSightings();                                                                // 3. storage
-        renderFeed();                                                                   // 4. the screen
-        refreshStats();
+        btn.disabled = true;
+        btn.textContent = "Removing…";
 
-        toast("Sighting removed", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>It is gone from this browser for good.</div>");
+        // The server decides. Do not take the row off the screen until it
+        // confirms - otherwise a failed request leaves this page showing
+        // something different from what everybody else sees.
+        fetch(API + "/" + encodeURIComponent(id), {
+          method: "DELETE",
+          headers: { "x-delete-key": key }
+        })
+          .then(function (res) {
+            if (!res.ok) throw new Error("server said " + res.status);
+            if (allSightings[i]._marker) markerLayer.removeLayer(allSightings[i]._marker);
+            allSightings.splice(i, 1);
+            forgetKey(id);
+            renderFeed();
+            refreshStats();
+            toast("Sighting removed", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>It is gone for everyone.</div>");
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            btn.textContent = "Remove";
+            toast("Could not remove it", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>" + esc(err.message) + "</div>");
+          });
       });
       // (already rendered by addSighting() during seeding)
 
@@ -1954,32 +2021,71 @@ function loadSightings() {
         document.getElementById("sightingModal").classList.remove("show");
       });
 
+      // Send one sighting to the server, then put it on the page.
+      //
+      // The order matters. The page only shows it after the server accepts it;
+      // doing it the other way round leaves a rejected sighting sitting on your
+      // screen looking saved while nobody else can see it - which is exactly the
+      // illusion this whole change existed to remove.
+      function postSighting(payload) {
+        var btn = document.querySelector('#sightingForm button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+
+        // Returning the promise lets a caller know when the round trip is done.
+        return fetch(API, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+          .then(function (res) {
+            return res.json().then(function (data) {
+              if (!res.ok) throw new Error(data.error || "server said " + res.status);
+              return data;
+            });
+          })
+          .then(function (data) {
+            rememberKey(data.id, data.delete_key);
+            addSighting({
+              id: data.id,
+              lat: payload.lat, lng: payload.lng,
+              location: payload.location, group: payload.species,
+              count: payload.count, user: payload.author,
+              note: payload.note, photo: payload.photo,
+              when: new Date(data.seen_at), mine: true
+            }, { flash: true, notify: true });
+            renderFeed();
+            refreshStats();
+          })
+          .catch(function (err) {
+            // Say what the server said. "count must be a whole number between 1
+            // and 200" is useful; "something went wrong" is not.
+            toast("Could not save it",
+              "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>" + esc(err.message) + "</div>");
+          })
+          .then(function () {
+            if (btn) { btn.disabled = false; btn.textContent = "✅ Save sighting"; }
+          });
+      }
+
       document.getElementById("sightingForm").addEventListener("submit", (e) => {
         e.preventDefault();
         const loc = document.getElementById("locationInput").value;
         const ll = capturedGps
           ? [capturedGps.lat, capturedGps.lng]
           : jitter(locationAnchors[loc] || PARK_CENTER, 90);
-        addSighting(
-          {
-            photo: pendingPhoto,
-            lat: ll[0],
-            lng: ll[1],
-            location: loc,
-            group: document.getElementById("speciesInput").value,
-            count: parseInt(document.getElementById("countInput").value, 10),
-            user: window.PPDT_USER || "@you",
-            note: document.getElementById("noteInput").value,
-            // Use the date the visitor actually chose. Today -> now (so it reads
-
-            // "just now"); any earlier day -> midday on that day, because a
-
-            // <input type="date"> gives us no time of day.
-
-            when: whenFromForm(),
-          },
-          { flash: true, notify: true }
-        );
+        postSighting({
+          photo: pendingPhoto,
+          lat: ll[0],
+          lng: ll[1],
+          location: loc,
+          species: document.getElementById("speciesInput").value,
+          count: parseInt(document.getElementById("countInput").value, 10),
+          author: window.PPDT_USER || "@you",
+          note: document.getElementById("noteInput").value,
+          // The date the visitor chose. Today -> now; an earlier day -> midday,
+          // because <input type="date"> gives no time of day.
+          seen_at: whenFromForm().toISOString()
+        });
         pendingPhoto = null;
         document.getElementById("sightingModal").classList.remove("show");
         e.target.reset();

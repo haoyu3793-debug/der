@@ -161,15 +161,50 @@ DNS and debugging a website at the same time is miserable.
 
 ---
 
+## Step 2b · Create the database (10 min)
+
+The site now has a backend, so there is one extra step. Everything here is a
+command; none of it is clicking around a dashboard.
+
+```bash
+npm install -g wrangler      # once, on the machine you deploy from
+wrangler login               # opens a browser
+
+wrangler d1 create deer-tracker
+```
+
+That last command prints a `database_id`. Paste it into `wrangler.toml`,
+replacing `PASTE-THE-ID-FROM-wrangler-d1-create-HERE`.
+
+Then create the table on the real database:
+
+```bash
+wrangler d1 execute deer-tracker --remote --file=./schema.sql
+```
+
+Commit `wrangler.toml` and push. Cloudflare reads it on the next deploy and
+wires `env.DB` up to the database.
+
+> The `database_id` is not a secret — it identifies the database, it does not
+> grant access to it. Access comes from the binding in `wrangler.toml`, which
+> only works from inside your own Cloudflare account.
+
+**Check it worked:** open `https://your-site.pages.dev/api/sightings`. You
+should see `{"sightings":[]}`. If you see an error mentioning `env.DB`, the
+binding did not take — check the id and redeploy.
+
+---
+
 ## What this does *not* fix
 
-Hosting makes the site reachable. It does not make it shared.
+Hosting makes the site reachable. The backend makes sightings shared. Neither
+touches the ratings: those are still written to `localStorage`, so a review is
+visible only to the person who left it. The homepage says so.
 
-Every sighting still lives in `localStorage`, in one browser, on one device.
-Two people who open the address see completely different content, and neither
-can see the other's sightings. **That is a property of the site, not of the
-hosting**, and no hosting choice changes it.
-
-Making it genuinely shared needs a server and a database — see the Lesson 15
-courseware for what that involves, and read the "Known problems" section of
-`README.md` before deciding to do it.
+There is also no moderation. Anything anybody posts appears immediately, to
+everybody. For a site nobody has heard of that is fine; the day it gets shared
+widely, it stops being fine. The server validates *shape* (a count between 1
+and 200, a real location, a real species, coordinates inside the park) but it
+cannot validate *intent* — somebody can still type something unpleasant into
+the note field. If that matters, the next thing to build is a `status` column
+that defaults to `pending` and a page where you approve rows.

@@ -1,0 +1,17 @@
+# Cloudflare Pages + D1 configuration.
+#
+# This file tells Cloudflare that the functions in functions/ can reach a
+# database, and what to call it in the code (env.DB).
+#
+# You need to fill in database_id once, after creating the database:
+#   wrangler d1 create deer-tracker
+# It prints the id. Paste it below, commit, push.
+
+name = "deer-tracker"
+pages_build_output_dir = "."
+compatibility_date = "2026-08-25"
+
+[[d1_databases]]
+binding = "DB"                 # the name the code uses: env.DB
+database_name = "deer-tracker"
+database_id = "PASTE-THE-ID-FROM-wrangler-d1-create-HERE"
