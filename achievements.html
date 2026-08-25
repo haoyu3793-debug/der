@@ -865,22 +865,30 @@
       //   "50 Metre Champion"  - we do not record a pledge
       // Inventing a condition for them would put the lie straight back.
       (function () {
-        function mySightings() {
-          try {
-            var raw = localStorage.getItem("ppdt_sightings");
-            if (!raw) return [];
-            var all = JSON.parse(raw);
-            if (!Array.isArray(all)) return [];
-            var me = window.PPDT_USER;
-            return all
-              .filter(function (s) { return s && s.user === me; })   // yours, not the seed rows
-              .map(function (s) {
-                s.when = new Date(s.when);
-                return s;
-              });
-          } catch (e) {
-            return [];   // broken storage must not fake an unlock either
-          }
+        // Sightings moved to the server, so this had to follow. Reading
+        // localStorage here quietly stopped working the moment the backend
+        // went in: the key was still there, it was just always empty, and
+        // every badge silently became unreachable.
+        function fetchMine() {
+          var me = window.PPDT_USER;
+          return fetch("/api/sightings", { headers: { accept: "application/json" } })
+            .then(function (res) {
+              if (!res.ok) throw new Error("server said " + res.status);
+              return res.json();
+            })
+            .then(function (data) {
+              return (data.sightings || [])
+                .filter(function (r) { return r.author === me; })   // yours, not everybody's
+                .map(function (r) {
+                  return {
+                    location: r.location, group: r.species, count: r.count,
+                    note: r.note, when: new Date(r.seen_at)
+                  };
+                });
+            })
+            .catch(function () {
+              return [];   // a failed request must not fake an unlock either
+            });
         }
 
         function distinct(list, key) {
@@ -889,7 +897,7 @@
           return Object.keys(seen).length;
         }
 
-        var mine = mySightings();
+        var mine = [];
 
         var rules = {
           "first-sighting": function () { return mine.length >= 1; },
@@ -917,23 +925,35 @@
           }
         };
 
-        Array.prototype.forEach.call(document.querySelectorAll("[data-check]"), function (el) {
-          var rule = rules[el.dataset.check];
-          if (!rule || !rule()) return;
-          el.dataset.status = "unlocked";
-          el.classList.remove("locked");
-          el.classList.add("unlocked");
+        // The counts, the ring and the points are all computed from
+        // data-status further down, so unlocking has to finish before that
+        // runs. Everything below moved inside the .then() for that reason.
+        window.__unlocking = fetchMine().then(function (rows) {
+          mine = rows;
+          Array.prototype.forEach.call(document.querySelectorAll("[data-check]"), function (el) {
+            var rule = rules[el.dataset.check];
+            if (!rule || !rule()) return;
+            el.dataset.status = "unlocked";
+            el.classList.remove("locked");
+            el.classList.add("unlocked");
+          });
         });
+        return window.__unlocking;
       })();
 
       // ===== Counts & summary =====
-      // Everything below reads data-status, so it now reports the truth for free.
+      // Everything here reads data-status, so it reports the truth for free -
+      // BUT unlocking is asynchronous now (it waits for the server), so this
+      // has to run after that finishes. Left at the top level it counted the
+      // badges before any of them had been unlocked and always said 0.
       const badges = Array.from(document.querySelectorAll(".badge"));
       const total = badges.length;
-      const unlocked = badges.filter((b) => b.dataset.status === "unlocked");
-      const locked = badges.filter((b) => b.dataset.status === "locked");
       const rare = badges.filter((b) => parseInt(b.dataset.rarity, 10) >= 2);
       const legendary = badges.filter((b) => parseInt(b.dataset.rarity, 10) === 4);
+
+      function refreshCounts() {
+      const unlocked = badges.filter((b) => b.dataset.status === "unlocked");
+      const locked = badges.filter((b) => b.dataset.status === "locked");
       const unlockedRare = unlocked.filter((b) => parseInt(b.dataset.rarity, 10) >= 2);
       const points = unlocked.reduce((sum, b) => sum + parseInt(b.dataset.points, 10), 0);
 
@@ -957,6 +977,12 @@
       requestAnimationFrame(() => {
         ring.setAttribute("stroke-dasharray", dash + " " + (circumference - dash));
       });
+      }
+
+      // Show zeros immediately so the page is never blank, then correct them
+      // once the server answers.
+      refreshCounts();
+      if (window.__unlocking) window.__unlocking.then(refreshCounts);
 
       // ===== Filter chips =====
       const chips = document.querySelectorAll(".chip");
