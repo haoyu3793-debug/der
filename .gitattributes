@@ -1,0 +1,9 @@
+# Keep line endings predictable. Without this, Git rewrites LF to CRLF on
+# Windows checkout, and a file that looks unchanged shows up as fully rewritten
+# in the next diff.
+* text=auto eol=lf
+
+# Binary - never touch these
+*.woff2 binary
+*.jpg   binary
+*.png   binary

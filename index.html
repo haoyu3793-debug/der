@@ -1,0 +1,2146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phoenix Park Deer Tracker</title>
+    <!-- Shared-link preview. Without these, pasting the address into WhatsApp
+         or WeChat produces a bare link with no title, no summary and no image.
+         og:image and og:url are relative; most scrapers resolve them against
+         the page, but once this site has a real domain make them absolute
+         (https://your-domain/...) so every scraper agrees. -->
+    <meta name="description" content="Log and browse fallow deer sightings in Phoenix Park, Dublin. A student-built map of where the herd has been seen — add your own." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Phoenix Park Deer Tracker" />
+    <meta property="og:locale" content="en_IE" />
+    <meta property="og:title" content="Phoenix Park Deer Tracker" />
+    <meta property="og:description" content="Log and browse fallow deer sightings in Phoenix Park, Dublin. A student-built map of where the herd has been seen — add your own." />
+    <meta property="og:image" content="assets/hero-1600.jpg" />
+    <meta property="og:image:alt" content="Fallow deer in Phoenix Park, Dublin" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Phoenix Park Deer Tracker" />
+    <meta name="twitter:description" content="Log and browse fallow deer sightings in Phoenix Park, Dublin. A student-built map of where the herd has been seen — add your own." />
+    <meta name="theme-color" content="#1f3d2a" />
+    <!-- Fonts are served from this site, not from Google. A visitor's IP address
+         never reaches a third party just to render text. -->
+    <link href="vendor/fonts/fonts.css" rel="stylesheet" />
+    <!-- Leaflet 1.9.4, served locally. If unpkg.com is down or blocked,
+         the map still works. integrity/crossorigin are gone because they
+         only mean anything for a file fetched from someone else. -->
+    <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+    <style>
+      :root {
+        --forest: #1f3d2a;
+        --moss: #2d5a3d;
+        --sage: #6b8e5a;
+        --gold: #c9a961;
+        --gold-soft: #e8d9a8;
+        --cream: #f7f3ea;
+        --bark: #3a2e22;
+        --ink: #1a1a1a;
+        --mist: #ffffff;
+        --shadow: 0 10px 30px rgba(31, 61, 42, 0.12);
+        --shadow-lg: 0 24px 60px rgba(31, 61, 42, 0.18);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--ink);
+        background: var(--cream);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      h1, h2, h3 {
+        font-family: "Playfair Display", Georgia, serif;
+        color: var(--forest);
+        letter-spacing: -0.01em;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 24px 80px;
+      }
+
+      /* ---------- Hero ---------- */
+      .hero {
+        position: relative;
+        height: 520px;
+        margin: 0 0 64px;
+        background:
+          linear-gradient(135deg, rgba(31, 61, 42, 0.55) 0%, rgba(58, 46, 34, 0.35) 100%),
+          url("assets/hero-1600.jpg")
+            center / cover;
+        color: var(--mist);
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+      }
+
+      .hero-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; width: 100%; }
+
+      .hero-eyebrow {
+        display: inline-block;
+        font-size: 0.85rem;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        color: var(--gold-soft);
+        border: 1px solid rgba(232, 217, 168, 0.4);
+        padding: 8px 18px;
+        border-radius: 100px;
+        margin-bottom: 24px;
+        backdrop-filter: blur(6px);
+        background: rgba(0, 0, 0, 0.15);
+      }
+
+      .hero h1 {
+        color: var(--mist);
+        font-size: clamp(2.2rem, 5vw, 4.2rem);
+        margin: 0 0 20px;
+        max-width: 760px;
+        line-height: 1.1;
+      }
+
+      .hero p { font-size: 1.15rem; max-width: 600px; opacity: 0.92; margin: 0 0 32px; }
+
+      /* Honest note about where sightings actually live. Not decoration -
+         the site says "log a sighting" and people assume that means shared. */
+      .hero-note {
+        font-size: 0.92rem;
+        max-width: 520px;
+        opacity: 0.8;
+        margin: -18px 0 28px;
+        padding-left: 12px;
+        border-left: 2px solid var(--gold);
+      }
+
+      .hero-cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--gold);
+        color: var(--bark);
+        padding: 14px 32px;
+        border-radius: 100px;
+        text-decoration: none;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .hero-cta:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(201, 169, 97, 0.4); }
+
+      /* ---------- Section headers ---------- */
+      .section-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin: 64px 0 28px;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+
+      .section-head h2 {
+        font-size: 2rem;
+        margin: 0;
+        position: relative;
+        padding-left: 18px;
+      }
+
+      .section-head h2::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.4em;
+        width: 4px;
+        height: 0.9em;
+        background: var(--gold);
+        border-radius: 2px;
+      }
+
+      .section-sub { color: var(--sage); font-size: 0.95rem; margin: 0; }
+
+      /* ---------- Stats ---------- */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 20px;
+      }
+
+      .stat-card {
+        background: var(--mist);
+        padding: 28px 28px 24px;
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+        border: 1px solid rgba(31, 61, 42, 0.05);
+      }
+
+      .stat-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+
+      .stat-card::after {
+        content: "";
+        position: absolute;
+        top: -40px; right: -40px;
+        width: 120px; height: 120px;
+        border-radius: 50%;
+        background: var(--gold-soft);
+        opacity: 0.35;
+      }
+
+      .stat-icon { font-size: 1.8rem; margin-bottom: 8px; }
+      .stat-label {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.75rem;
+        color: var(--sage);
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      .stat-value {
+        font-family: "Playfair Display", serif;
+        font-size: 2.6rem;
+        font-weight: 700;
+        color: var(--forest);
+        line-height: 1;
+      }
+
+      /* ---------- Map ---------- */
+      .map-wrap {
+        position: relative;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+        background: var(--mist);
+        transition: all 0.3s ease;
+      }
+
+      #map { height: 540px; width: 100%; z-index: 1; }
+
+      .map-wrap.expanded {
+        position: fixed;
+        inset: 16px;
+        z-index: 200;
+        border-radius: 14px;
+        box-shadow: var(--shadow-lg);
+      }
+
+      .map-wrap.expanded #map { height: 100%; }
+
+      .map-controls {
+        position: absolute;
+        top: 16px; right: 16px;
+        z-index: 5;
+        display: flex; gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .map-btn {
+        background: var(--mist);
+        border: none;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--forest);
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background 0.2s ease;
+      }
+
+      .map-btn:hover { background: var(--gold-soft); }
+
+      .map-legend {
+        position: absolute;
+        bottom: 16px; left: 16px;
+        z-index: 5;
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(6px);
+        padding: 14px 18px;
+        border-radius: 12px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+        font-size: 0.82rem;
+      }
+
+      .map-legend h4 {
+        margin: 0 0 8px;
+        font-family: "Inter", sans-serif;
+        font-size: 0.7rem;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--sage);
+        font-weight: 600;
+      }
+
+      .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+      .legend-swatch { width: 14px; height: 14px; border-radius: 4px; }
+      .legend-swatch.zone-high { background: rgba(45, 90, 61, 0.35); border: 1.5px solid #2d5a3d; }
+      .legend-swatch.zone-mid { background: rgba(107, 142, 90, 0.3); border: 1.5px solid #6b8e5a; }
+      .legend-swatch.pin { background: #b13e3e; border-radius: 50%; }
+      .legend-swatch.you { background: #2c7be5; border-radius: 50%; }
+
+      .map-count {
+        position: absolute;
+        top: 16px; left: 16px;
+        z-index: 5;
+        background: rgba(255, 255, 255, 0.96);
+        padding: 8px 14px;
+        border-radius: 100px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--forest);
+        display: inline-flex; align-items: center; gap: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      }
+
+      /* A steady green dot: there are pins on the map. It is not claiming
+         anything is happening right now. */
+      .map-count::before {
+        content: "";
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--moss, #2d5a3d);
+      }
+
+      .leaflet-popup-content-wrapper { border-radius: 12px; font-family: "Inter", sans-serif; }
+      .leaflet-popup-content { margin: 14px 18px; font-size: 0.9rem; line-height: 1.5; }
+      .leaflet-popup-content b {
+        font-family: "Playfair Display", serif;
+        color: var(--forest);
+        font-size: 1.05rem;
+      }
+
+      .leaflet-tooltip {
+        font-family: "Inter", sans-serif;
+        border-radius: 8px;
+        padding: 10px 14px;
+        max-width: 260px;
+        white-space: normal;
+        line-height: 1.45;
+      }
+
+      .leaflet-tooltip b {
+        font-family: "Playfair Display", serif;
+        color: var(--forest);
+        font-size: 1rem;
+      }
+
+      .pop-meta {
+        display: block;
+        margin-top: 4px;
+        color: var(--sage);
+        font-size: 0.78rem;
+      }
+
+      .pop-time {
+        display: inline-block;
+        margin-top: 6px;
+        padding: 3px 9px;
+        border-radius: 100px;
+        font-size: 0.72rem;
+        background: var(--gold-soft);
+        color: var(--bark);
+        font-weight: 600;
+      }
+
+      .pop-time.fresh { background: #ffd9d9; color: #8b1a1a; }
+
+      /* Visitor photo inside a map popup. The height is fixed on purpose:
+         Leaflet measures the popup when it opens, so the box has to be the
+         right size BEFORE the image finishes loading — otherwise the popup
+         opens too short and the picture gets clipped. */
+      .pop-photo {
+        display: block;
+        width: 100%;
+        /* min-width matters: width:100% does not push the popup any wider, so
+           without this the popup sizes itself to the text and squeezes the
+           photo down to whatever is left. */
+        min-width: 190px;
+        height: 104px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin: 0 0 10px;
+        background: #efeadc;
+      }
+
+      /* User location pin */
+      .you-pin-wrap {
+        width: 24px; height: 24px;
+        position: relative;
+      }
+      .you-pin-dot {
+        position: absolute; inset: 2px;
+        border-radius: 50%;
+        background: #2c7be5;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        z-index: 2;
+      }
+      .you-pin-pulse {
+        position: absolute; inset: 0;
+        border-radius: 50%;
+        background: rgba(44, 123, 229, 0.4);
+        animation: locPulse 2s ease-out infinite;
+      }
+      @keyframes locPulse {
+        0% { transform: scale(0.6); opacity: 0.7; }
+        100% { transform: scale(2.6); opacity: 0; }
+      }
+
+      /* Park facts row */
+      .park-facts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+        margin-top: 20px;
+      }
+
+      .fact {
+        background: var(--mist);
+        padding: 18px 20px;
+        border-radius: 12px;
+        border-left: 3px solid var(--gold);
+      }
+
+      .fact strong {
+        display: block;
+        font-family: "Playfair Display", serif;
+        font-size: 1.4rem;
+        color: var(--forest);
+      }
+
+      .fact span {
+        font-size: 0.78rem;
+        color: var(--sage);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      /* ---------- Feed ---------- */
+      .feed-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+      }
+
+      .feed-card {
+        background: var(--mist);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.25s ease;
+        border: 1px solid rgba(31, 61, 42, 0.05);
+      }
+
+      .feed-card:hover { transform: translateY(-4px); }
+      .feed-card .body { padding: 18px 20px 20px; }
+
+      .feed-tag {
+        display: inline-block;
+        font-size: 0.7rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--moss);
+        background: var(--gold-soft);
+        padding: 4px 10px;
+        border-radius: 100px;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      .feed-card h4 {
+        font-family: "Playfair Display", serif;
+        font-size: 1.15rem;
+        margin: 0 0 6px;
+        color: var(--forest);
+      }
+
+      .feed-card .meta { font-size: 0.82rem; color: var(--sage); }
+
+      .feed-card .time-pill {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 2px 8px;
+        border-radius: 100px;
+        font-size: 0.7rem;
+        background: var(--gold-soft);
+        color: var(--bark);
+      }
+      .feed-card .time-pill.fresh { background: #ffd9d9; color: #8b1a1a; }
+
+      /* Remove button. Quiet until you look for it - deleting is not the thing
+         we want people doing by accident, but it must be findable without hunting. */
+      .feed-card .body { position: relative; }
+      .feed-del {
+        margin-top: 12px;
+        background: none;
+        border: 1px solid rgba(139, 26, 26, 0.35);
+        color: #8b1a1a;
+        border-radius: 6px;
+        padding: 5px 12px;
+        font: inherit;
+        font-size: 0.78rem;
+        cursor: pointer;
+        opacity: 0.75;
+        transition: opacity 0.15s, background 0.15s;
+      }
+      .feed-del:hover { opacity: 1; background: rgba(139, 26, 26, 0.07); }
+      .feed-del:focus-visible { outline: 2px solid #8b1a1a; outline-offset: 2px; opacity: 1; }
+
+      /* Sample rows are visibly not real reports. */
+      .feed-card.is-sample { background: repeating-linear-gradient(
+          135deg, #fbf8f0, #fbf8f0 10px, #f6f1e4 10px, #f6f1e4 20px); }
+      .sample-tag {
+        display: inline-block;
+        margin-left: 8px;
+        font-size: 0.68rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #8a7434;
+        background: rgba(201, 169, 97, 0.22);
+        border: 1px solid rgba(201, 169, 97, 0.5);
+        border-radius: 100px;
+        padding: 2px 9px;
+        vertical-align: middle;
+      }
+
+      .feed-more {
+        grid-column: 1 / -1;
+        justify-self: center;
+        margin-top: 8px;
+        background: none;
+        border: 1px solid var(--sage);
+        color: var(--forest);
+        border-radius: 100px;
+        padding: 9px 22px;
+        font: inherit;
+        font-size: 0.9rem;
+        cursor: pointer;
+      }
+      .feed-more:hover { background: rgba(107, 142, 90, 0.1); }
+
+      .feed-card.feed-empty {
+        border: 1px dashed var(--sage);
+        background: transparent;
+        box-shadow: none;
+        grid-column: 1 / -1;
+      }
+      .feed-card.feed-empty:hover { transform: none; }
+
+      .feed-card .note { margin: 8px 0 0; font-size: 0.9rem; color: #444; }
+
+      /* Visitor photo. object-fit:cover crops instead of squashing, so tall
+         and wide photos both sit neatly in the same card. */
+      .feed-card .feed-photo {
+        width: 100%;
+        max-height: 220px;
+        object-fit: cover;
+        border-radius: 10px;
+        margin-top: 12px;
+        display: block;
+        background: #efeadc;
+      }
+
+      /* ---------- Ratings ---------- */
+      .ratings-summary {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        font-family: "Playfair Display", serif;
+      }
+
+      .ratings-summary .avg {
+        font-size: 2.6rem;
+        font-weight: 700;
+        color: var(--forest);
+        line-height: 1;
+      }
+
+      .ratings-summary .of {
+        font-family: "Inter", sans-serif;
+        font-size: 0.88rem;
+        color: var(--sage);
+      }
+
+      .ratings-summary .stars {
+        color: var(--gold);
+        font-size: 1.1rem;
+        letter-spacing: 2px;
+        font-family: "Inter", sans-serif;
+      }
+
+      .rating-track-mask {
+        overflow: hidden;
+        position: relative;
+        margin: 0 -24px;
+        padding: 8px 0;
+      }
+
+      .rating-track-mask::before,
+      .rating-track-mask::after {
+        content: "";
+        position: absolute;
+        top: 0; bottom: 0;
+        width: 60px;
+        z-index: 2;
+        pointer-events: none;
+      }
+      .rating-track-mask::before { left: 0; background: linear-gradient(to right, var(--cream), transparent); }
+      .rating-track-mask::after { right: 0; background: linear-gradient(to left, var(--cream), transparent); }
+
+      .rating-track {
+        display: flex;
+        gap: 16px;
+        width: max-content;
+        animation: scrollRatings 60s linear infinite;
+        padding: 0 24px;
+      }
+
+      .rating-track-mask:hover .rating-track { animation-play-state: paused; }
+      /* With nothing to scroll there is nothing to animate - a single card
+         sliding off the screen forever just looks broken. */
+      .rating-track.is-empty { animation: none; }
+      .rating-card.rating-empty {
+        border-style: dashed;
+        opacity: 0.85;
+        max-width: 420px;
+      }
+      .rating-card.rating-empty p { font-style: normal; }
+
+      @keyframes scrollRatings {
+        from { transform: translateX(0); }
+        to { transform: translateX(-50%); }
+      }
+
+      .rating-card {
+        flex: 0 0 320px;
+        background: var(--mist);
+        padding: 20px 22px;
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        border: 1px solid rgba(31, 61, 42, 0.05);
+      }
+
+      .rating-card .stars {
+        color: var(--gold);
+        font-size: 0.95rem;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+      }
+
+      .rating-card p {
+        margin: 0 0 14px;
+        font-size: 0.92rem;
+        color: #333;
+        line-height: 1.55;
+      }
+
+      .rating-card .who {
+        font-size: 0.78rem;
+        color: var(--sage);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 600;
+      }
+
+      .rating-form {
+        background: var(--mist);
+        padding: 32px;
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        margin-top: 32px;
+        max-width: 640px;
+      }
+
+      .rating-form h3 {
+        margin: 0 0 6px;
+        font-size: 1.35rem;
+      }
+
+      .rating-form p.help { color: var(--sage); font-size: 0.88rem; margin: 0 0 20px; }
+
+      .slider-row {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-bottom: 16px;
+      }
+
+      .slider-row input[type="range"] {
+        flex: 1;
+        -webkit-appearance: none;
+        appearance: none;
+        height: 6px;
+        background: linear-gradient(to right, var(--gold) var(--pct, 100%), rgba(31, 61, 42, 0.15) var(--pct, 100%));
+        border-radius: 100px;
+        outline: none;
+      }
+
+      .slider-row input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 22px; height: 22px;
+        border-radius: 50%;
+        background: var(--moss);
+        border: 3px solid white;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      }
+      .slider-row input[type="range"]::-moz-range-thumb {
+        width: 22px; height: 22px;
+        border-radius: 50%;
+        background: var(--moss);
+        border: 3px solid white;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      }
+
+      .slider-value {
+        min-width: 56px;
+        text-align: center;
+        font-family: "Playfair Display", serif;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--forest);
+      }
+
+      .slider-stars { color: var(--gold); letter-spacing: 2px; min-width: 110px; font-size: 1.1rem; }
+
+      .rating-form textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid rgba(31, 61, 42, 0.15);
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 0.95rem;
+        background: var(--cream);
+        min-height: 80px;
+        resize: vertical;
+      }
+
+      .rating-form input[type="text"] {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid rgba(31, 61, 42, 0.15);
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 0.95rem;
+        background: var(--cream);
+        margin-bottom: 12px;
+      }
+
+      .rating-form button {
+        background: var(--moss);
+        color: var(--mist);
+        border: none;
+        padding: 12px 28px;
+        border-radius: 100px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        cursor: pointer;
+        margin-top: 14px;
+        transition: background 0.2s ease;
+      }
+
+      .rating-form button:hover { background: var(--forest); }
+
+      /* ---------- FAB & modal ---------- */
+      .fab {
+        position: fixed;
+        right: 32px; bottom: 32px;
+        width: 64px; height: 64px;
+        border-radius: 50%;
+        background: var(--moss);
+        color: var(--mist);
+        border: none;
+        font-size: 1.8rem;
+        cursor: pointer;
+        box-shadow: 0 12px 32px rgba(31, 61, 42, 0.35);
+        z-index: 50;
+        transition: transform 0.2s ease, background 0.2s ease;
+      }
+
+      .fab:hover { background: var(--forest); transform: scale(1.06) rotate(90deg); }
+
+      .modal-mask {
+        display: none;
+        position: fixed; inset: 0;
+        background: rgba(26, 26, 26, 0.55);
+        backdrop-filter: blur(6px);
+        z-index: 300;
+        align-items: center; justify-content: center;
+        padding: 24px;
+      }
+
+      .modal-mask.show { display: flex; }
+
+      .modal {
+        background: var(--mist);
+        border-radius: 18px;
+        padding: 36px 32px;
+        width: 100%;
+        max-width: 460px;
+        box-shadow: var(--shadow-lg);
+      }
+
+      .modal h3 { margin: 0 0 6px; font-size: 1.5rem; }
+      .modal .modal-sub { color: var(--sage); font-size: 0.88rem; margin: 0 0 20px; }
+      .modal form { display: flex; flex-direction: column; gap: 14px; }
+
+      .modal input,
+      .modal select,
+      .modal textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid rgba(31, 61, 42, 0.15);
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 0.95rem;
+        background: var(--cream);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .modal input:focus,
+      .modal select:focus,
+      .modal textarea:focus {
+        outline: none;
+        border-color: var(--moss);
+        box-shadow: 0 0 0 3px rgba(45, 90, 61, 0.12);
+      }
+
+      .modal textarea { min-height: 90px; resize: vertical; }
+
+      .modal button[type="submit"] {
+        background: var(--moss);
+        color: var(--mist);
+        border: none;
+        padding: 14px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+
+      .modal button[type="submit"]:hover { background: var(--forest); }
+
+      .gps-btn {
+        background: var(--cream);
+        color: var(--moss);
+        border: 1px dashed var(--sage);
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .gps-btn:hover { background: var(--gold-soft); border-color: var(--gold); }
+      .gps-btn:disabled { opacity: 0.6; cursor: wait; }
+
+      .gps-status {
+        display: none;
+        font-size: 0.8rem;
+        padding: 8px 12px;
+        border-radius: 8px;
+        line-height: 1.4;
+      }
+      .gps-status.pending,
+      .gps-status.ok,
+      .gps-status.err,
+      .gps-status.muted { display: block; }
+      .gps-status.pending { background: rgba(45, 90, 61, 0.08); color: var(--moss); }
+      .gps-status.ok { background: rgba(45, 90, 61, 0.12); color: var(--forest); }
+      .gps-status.err { background: rgba(177, 62, 62, 0.1); color: #8b1a1a; }
+      .gps-status.muted { background: rgba(31, 61, 42, 0.04); color: var(--sage); font-style: italic; }
+
+      /* ---------- Toast ---------- */
+      .toast-stack {
+        position: fixed;
+        top: 90px;
+        right: 24px;
+        z-index: 500;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 340px;
+        pointer-events: none;
+      }
+
+      .toast {
+        background: var(--forest);
+        color: white;
+        padding: 14px 18px;
+        border-radius: 12px;
+        box-shadow: var(--shadow-lg);
+        font-size: 0.92rem;
+        line-height: 1.4;
+        transform: translateX(120%);
+        opacity: 0;
+        transition: transform 0.32s ease, opacity 0.32s ease;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        pointer-events: auto;
+        border-left: 3px solid var(--gold);
+      }
+
+      .toast.show { transform: translateX(0); opacity: 1; }
+      .toast .toast-icon { font-size: 1.2rem; line-height: 1; }
+      .toast strong { display: block; margin-bottom: 2px; font-family: "Playfair Display", serif; font-size: 0.98rem; }
+
+      /* ---------- Navbar (themes partials.js output) ---------- */
+      .navbar {
+        background: var(--mist);
+        padding: 16px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+
+      .navbar .logo {
+        font-family: "Playfair Display", serif;
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: var(--forest);
+        text-decoration: none;
+      }
+
+      .navbar .nav-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+
+      .navbar .nav-tabs a {
+        text-decoration: none;
+        color: var(--bark);
+        padding: 8px 16px;
+        border-radius: 100px;
+        font-size: 0.92rem;
+        font-weight: 500;
+        transition: background 0.2s ease, color 0.2s ease;
+      }
+
+      .navbar .nav-tabs a:hover { background: var(--gold-soft); color: var(--forest); }
+
+      /* ---------- Footer (themes partials.js output) ---------- */
+      .site-footer {
+        background: var(--forest);
+        color: rgba(255, 255, 255, 0.85);
+        padding: 60px 24px 28px;
+        margin-top: 80px;
+      }
+
+      .footer-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 2fr 1.5fr 1.5fr;
+        gap: 40px;
+      }
+
+      .footer-brand .footer-logo {
+        font-family: "Playfair Display", serif;
+        font-size: 1.3rem;
+        color: white;
+        display: block;
+        margin-bottom: 8px;
+      }
+      .footer-brand p { margin: 0; font-size: 0.9rem; opacity: 0.85; }
+
+      .footer-col h5 {
+        font-family: "Inter", sans-serif;
+        font-size: 0.75rem;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--gold);
+        margin: 0 0 12px;
+      }
+
+      .footer-col a {
+        display: block;
+        color: rgba(255, 255, 255, 0.85);
+        text-decoration: none;
+        font-size: 0.9rem;
+        padding: 4px 0;
+        transition: color 0.15s ease;
+      }
+      .footer-col a:hover { color: var(--gold); }
+
+      .footer-credit {
+        max-width: 1200px;
+        margin: 32px auto 0;
+        padding-top: 24px;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        font-size: 0.82rem;
+        color: rgba(255, 255, 255, 0.6);
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .footer-credit .credit-names { color: var(--gold-soft); font-weight: 500; }
+
+      /* Tap-to-activate overlay. On a phone a finger-drag that starts inside
+         the map pans the map instead of scrolling the page, which traps the
+         reader. We switch Leaflet dragging off and ask for a tap first. */
+      .modal-close {
+        position: absolute;
+        top: 10px;
+        right: 14px;
+        background: none;
+        border: 0;
+        font-size: 1.9rem;
+        line-height: 1;
+        color: var(--sage);
+        cursor: pointer;
+        padding: 4px 8px;
+      }
+      .modal-close:hover { color: var(--forest); }
+      .modal { position: relative; }
+
+      .map-tap-hint {
+        position: absolute;
+        inset: 0;
+        z-index: 6;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(31, 61, 42, 0.32);
+        color: #fff;
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-align: center;
+        padding: 20px;
+        cursor: pointer;
+      }
+      .map-tap-hint.show { display: flex; }
+
+      @media (max-width: 720px) {
+        .footer-inner { grid-template-columns: 1fr; gap: 24px; }
+
+        /* Fixed pixel heights are what break this page on a phone. */
+        .hero { height: auto; padding: 96px 0 56px; }
+        #map { height: 340px; }
+        .map-wrap.expanded #map { height: 100%; }
+
+        /* The LIVE badge sat on top of Leaflet's zoom buttons. */
+        .map-controls { top: auto; bottom: 12px; right: 12px; }
+
+        /* Hover cannot pause anything on a touch screen, so stop it moving
+           by default and let the reader start it if they want to. */
+        .rating-track { animation-play-state: paused; }
+        .rating-track.rolling { animation-play-state: running; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="nav-slot"></div>
+
+    <div class="toast-stack" id="toastStack"></div>
+
+    <section class="hero">
+      <div class="hero-inner">
+        <span class="hero-eyebrow">Dublin · Ireland · Royal deer park since 1662</span>
+        <h1>Track the fallow deer of Phoenix Park.</h1>
+        <p>
+          A sighting log for one of the largest enclosed parks in any European
+          capital — record where you saw the ~600-strong fallow deer herd that
+          has roamed these 1,750 acres since 1662.
+        </p>
+        <p class="hero-note">
+          Sightings you post are saved on this device only — nobody else can
+          see them yet. An independent student project — not affiliated
+          with the OPW or the official management of Phoenix Park.
+        </p>
+        <button class="hero-cta" onclick="document.getElementById('sightingModal').classList.add('show')">
+          Log a sighting →
+        </button>
+      </div>
+    </section>
+
+    <main class="container">
+      <!-- Stats -->
+      <div class="section-head">
+        <div>
+          <h2>Today at a glance</h2>
+          <p class="section-sub">Community totals across the park</p>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">👁️</div>
+          <div class="stat-label">Sightings today</div>
+          <div class="stat-value" id="statSightings">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🦌</div>
+          <div class="stat-label">Deer counted</div>
+          <div class="stat-value" id="statDeer">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📍</div>
+          <div class="stat-label">Places tracked</div>
+          <div class="stat-value" id="statUsers">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🌳</div>
+          <div class="stat-label">Park hectares</div>
+          <div class="stat-value">707</div>
+        </div>
+      </div>
+
+      <!-- Map -->
+      <div class="section-head">
+        <div>
+          <h2>Where they roam</h2>
+          <p class="section-sub">
+            Drag · scroll-zoom · click pins for sighting details · hover the green areas for habitat notes
+          </p>
+        </div>
+      </div>
+
+      <div class="map-wrap" id="mapWrap">
+        <div id="map"></div>
+        <div class="map-tap-hint" id="mapTapHint">Tap the map to move it</div>
+        <!-- This said LIVE, with a pulsing red dot, next to a map showing
+             stored sightings. Nothing about it was live. It now shows how many
+             pins are actually on the map, which is a real number. -->
+        <div class="map-count" id="mapCount">0 sightings</div>
+        <div class="map-controls">
+          <button class="map-btn" id="mapFindMe" title="Use my GPS location">📍 Find me</button>
+          <button class="map-btn" id="mapRecenter" title="Recenter on park">⌖ Recenter</button>
+          <button class="map-btn" id="mapExpand" title="Expand map">⤢ Expand</button>
+        </div>
+        <div class="map-legend">
+          <h4>Map key</h4>
+          <div class="legend-row">
+            <span class="legend-swatch zone-high"></span>
+            <span>Core habitat (most reliable)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch zone-mid"></span>
+            <span>Secondary habitat</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch pin"></span>
+            <span>User sighting</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch you"></span>
+            <span>You (if in park)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="park-facts">
+        <div class="fact"><strong>~600</strong><span>Fallow deer (only species)</span></div>
+        <div class="fact"><strong>1662</strong><span>Park founded as royal hunt</span></div>
+        <div class="fact"><strong>1,750</strong><span>Acres / 707 hectares</span></div>
+        <div class="fact"><strong>53.36°N</strong><span>6.33°W — Dublin 8/15</span></div>
+      </div>
+
+      <!-- Feed -->
+      <div class="section-head">
+        <div>
+          <h2>Latest sightings</h2>
+          <p class="section-sub">Recent community reports</p>
+        </div>
+      </div>
+
+      <div id="feed">
+        <div class="feed-list" id="feedList"></div>
+      </div>
+
+      <!-- Ratings -->
+      <div class="section-head">
+        <div>
+          <h2>Visitor ratings</h2>
+          <!-- On a mouse, hovering pauses the carousel. On a phone there is no
+               hover, so a tap starts and stops it. Say both, or half the readers
+               are told something that isn't true on their device. -->
+          <p class="section-sub">Hover to pause — on a phone, tap to start or stop</p>
+        </div>
+        <div class="ratings-summary">
+          <!-- These start empty and are filled in by renderRatings() from the
+               real reviews. Nothing here is typed in by hand. -->
+          <span class="avg" id="avgRating">—</span>
+          <span class="of">/ 5</span>
+          <span class="stars" id="avgStars">☆☆☆☆☆</span>
+          <span class="of"><span id="ratingCount">0</span> reviews</span>
+        </div>
+      </div>
+
+      <div class="rating-track-mask">
+        <div class="rating-track" id="ratingTrack"></div>
+      </div>
+
+      <div class="rating-form">
+        <h3>Rate your experience</h3>
+        <p class="help">Slide to rate, then submit. Your review appears in the carousel.</p>
+        <input type="text" id="rateName" placeholder="Your name (or leave blank for anonymous)" />
+        <div class="slider-row">
+          <input type="range" min="1" max="5" step="0.5" value="5" id="ratingSlider" style="--pct: 100%" />
+          <span class="slider-value" id="sliderValue">5.0</span>
+          <span class="slider-stars" id="sliderStars">★★★★★</span>
+        </div>
+        <textarea id="rateNote" placeholder="What did you see? Any tips for fellow visitors?"></textarea>
+        <button id="rateSubmit" type="button">Submit rating</button>
+      </div>
+
+      <!-- FAB -->
+      <button class="fab" id="fab" title="Log a new sighting"
+        onclick="document.getElementById('sightingModal').classList.add('show')">+</button>
+
+      <!-- Modal -->
+      <div class="modal-mask" id="sightingModal"
+        onclick="if(event.target===this)this.classList.remove('show')">
+        <div class="modal">
+          <button type="button" class="modal-close" id="modalClose" aria-label="Close">×</button>
+          <h3>📝 Log a sighting</h3>
+          <p class="modal-sub">Phoenix Park is home to fallow deer only — no other species roam here.</p>
+          <p class="modal-sub" style="margin-top:-12px;font-size:0.78rem">Posting as <strong data-ppdt-username>@you</strong> · click your name in the nav to change it</p>
+          <form id="sightingForm">
+            <label>Photo (optional)
+  <input type="file" id="photoInput" accept="image/*" />
+</label>
+<img id="photoPreview" alt="Preview of the photo you chose" style="display:none;max-width:100%;border-radius:8px" />
+            <label class="fld-lbl" for="dateInput">When did you see them?</label>
+            <input type="date" id="dateInput" required />
+            <select id="speciesInput" required>
+              <option value="">Group type…</option>
+              <option>Fallow stag (male, antlered)</option>
+              <option>Fallow doe (female)</option>
+              <option>Fawn (juvenile)</option>
+              <option>Mixed herd</option>
+            </select>
+            <select id="locationInput" required>
+              <option value="">Location…</option>
+              <option>Fifteen Acres</option>
+              <option>Furry Glen</option>
+              <option>Phoenix Monument</option>
+              <option>Wellington Monument</option>
+              <option>Papal Cross</option>
+              <option>Magazine Fort</option>
+              <option>Áras an Uachtaráin perimeter</option>
+              <option>Chesterfield Avenue</option>
+              <option>Glen Pond</option>
+              <option>Citadel Pond</option>
+            </select>
+            <button type="button" id="useGpsBtn" class="gps-btn">📍 Use my current location</button>
+            <div id="gpsStatus" class="gps-status"></div>
+            <input type="number" id="countInput" min="1" max="200" placeholder="How many deer?" required />
+            <textarea id="noteInput" placeholder="Notes (optional)…"></textarea>
+            <button type="submit">✅ Publish sighting</button>
+          </form>
+        </div>
+      </div>
+    </main>
+
+    <div id="footer-slot"></div>    <script src="partials.js"></script>
+    <script src="vendor/leaflet/leaflet.js"></script>
+    <script>
+      // ===== HTML escape (prevent XSS when user input flows into innerHTML) =====
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+        }[c]));
+      }
+
+      // ===== Toast =====
+      // `title` is escaped. `body` is treated as trusted HTML — only call with
+      // hard-coded markup, never with user input.
+      function toast(title, body) {
+        const stack = document.getElementById("toastStack");
+        const t = document.createElement("div");
+        t.className = "toast";
+        t.innerHTML =
+          '<div class="toast-icon">🦌</div>' +
+          "<div><strong>" + esc(title) + "</strong>" +
+          (body ? body : "") + "</div>";
+        stack.appendChild(t);
+        requestAnimationFrame(() => t.classList.add("show"));
+        setTimeout(() => {
+          t.classList.remove("show");
+          setTimeout(() => t.remove(), 350);
+        }, 2000);
+      }
+
+      // Today as YYYY-MM-DD in LOCAL time. Do not use toISOString() here:
+      // it converts to UTC first, so late in the evening it returns tomorrow.
+      function todayISO() {
+        const d = new Date();
+        return d.getFullYear() + "-" +
+          String(d.getMonth() + 1).padStart(2, "0") + "-" +
+          String(d.getDate()).padStart(2, "0");
+      }
+
+      // Turn whatever is in the date box into a real moment in time.
+      function whenFromForm() {
+        const el = document.getElementById("dateInput");
+        const v = el ? el.value : "";
+        if (!v) return new Date();
+        if (v === todayISO()) return new Date();   // today -> right now
+        return new Date(v + "T12:00:00");          // earlier day -> midday
+      }
+
+      // Prefill the sighting date with today (re-runnable after form reset)
+      function prefillDate() {
+        const d = new Date();
+        const iso = d.getFullYear() + "-" +
+          String(d.getMonth() + 1).padStart(2, "0") + "-" +
+          String(d.getDate()).padStart(2, "0");
+        const dateInput = document.getElementById("dateInput");
+        if (dateInput) {
+          dateInput.value = iso;
+          dateInput.max = iso;   // you cannot have seen a deer tomorrow
+        }
+      }
+      prefillDate();
+
+      // ===== Map =====
+      const PARK_CENTER = [53.3559, -6.3298];
+      const PARK_BOUNDS = L.latLngBounds([53.3450, -6.3540], [53.3680, -6.3050]);
+
+      const map = L.map("map", {
+        center: PARK_CENTER,
+        zoom: 14,
+        minZoom: 13,
+        maxBounds: PARK_BOUNDS.pad(0.3),
+        zoomControl: true,
+      });
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+      }).addTo(map);
+
+      // ----- Phone: do not let the map swallow the page scroll -----
+      // A finger-drag starting inside the map pans the map, so the reader can
+      // get stuck and never reach the rest of the page. Require one tap first.
+      (function () {
+        const small = window.matchMedia("(max-width: 720px)");
+        const hint = document.getElementById("mapTapHint");
+        function apply() {
+          if (small.matches) {
+            map.dragging.disable();
+            if (hint) hint.classList.add("show");
+          } else {
+            map.dragging.enable();
+            if (hint) hint.classList.remove("show");
+          }
+        }
+        if (hint) {
+          hint.addEventListener("click", function () {
+            map.dragging.enable();
+            hint.classList.remove("show");
+          });
+        }
+        apply();
+        if (small.addEventListener) small.addEventListener("change", apply);
+        else if (small.addListener) small.addListener(apply);   // older Safari
+      })();
+
+      // ----- Vague, organic deer-population zones -----
+      // Polygons hand-shaped from many points to look like natural habitat
+      // patches rather than rectangles. Density is intentionally vague.
+      const zones = [
+        {
+          name: "Fifteen Acres core",
+          density: "high",
+          note:
+            "Vast central grassland — the most reliable area for the herd. Fallow deer graze here in groups year-round, especially at dawn and dusk.",
+          coords: [
+            [53.3568, -6.3398], [53.3572, -6.3370], [53.3568, -6.3338],
+            [53.3558, -6.3308], [53.3540, -6.3282], [53.3520, -6.3268],
+            [53.3500, -6.3270], [53.3486, -6.3290], [53.3478, -6.3320],
+            [53.3478, -6.3360], [53.3490, -6.3398], [53.3510, -6.3422],
+            [53.3535, -6.3428], [53.3555, -6.3418],
+          ],
+        },
+        {
+          name: "Áras grasslands",
+          density: "high",
+          note:
+            "Open ground bordering the President's residence — deer often graze along the fence line, especially in early morning.",
+          coords: [
+            [53.3640, -6.3340], [53.3645, -6.3308], [53.3640, -6.3275],
+            [53.3625, -6.3252], [53.3605, -6.3245], [53.3585, -6.3258],
+            [53.3578, -6.3285], [53.3582, -6.3318], [53.3598, -6.3342],
+            [53.3620, -6.3352],
+          ],
+        },
+        {
+          name: "Furry Glen woodland",
+          density: "mid",
+          note:
+            "Wooded valley in the north-west. Used as cover during midday and during the autumn rut. Fewer deer visible but they are around.",
+          coords: [
+            [53.3613, -6.3520], [53.3618, -6.3478], [53.3608, -6.3435],
+            [53.3590, -6.3415], [53.3568, -6.3415], [53.3548, -6.3438],
+            [53.3545, -6.3478], [53.3555, -6.3515], [53.3582, -6.3528],
+          ],
+        },
+        {
+          name: "Papal Cross meadow",
+          density: "mid",
+          note:
+            "Rolling meadow around the 35-metre Papal Cross (1979). Smaller mixed groups graze here, often spilling in from Fifteen Acres.",
+          coords: [
+            [53.3614, -6.3418], [53.3618, -6.3382], [53.3608, -6.3348],
+            [53.3590, -6.3340], [53.3572, -6.3358], [53.3568, -6.3392],
+            [53.3580, -6.3420], [53.3600, -6.3428],
+          ],
+        },
+      ];
+
+      const zoneStyles = {
+        high: { color: "#1f3d2a", fillColor: "#2d5a3d", fillOpacity: 0.32, weight: 1.5, smoothFactor: 1.5 },
+        mid:  { color: "#4a6b3a", fillColor: "#6b8e5a", fillOpacity: 0.26, weight: 1.5, smoothFactor: 1.5 },
+      };
+
+      const zoneLayer = L.featureGroup().addTo(map);
+      zones.forEach((z) => {
+        const poly = L.polygon(z.coords, zoneStyles[z.density]).addTo(zoneLayer);
+        poly.bindTooltip(
+          '<b>' + z.name + '</b>' +
+          '<br><span style="font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:#6b8e5a">' +
+          z.density + ' density</span><br>' + z.note,
+          { sticky: true, direction: "top", opacity: 0.97 }
+        );
+        poly.on("mouseover", () =>
+          poly.setStyle({ fillOpacity: zoneStyles[z.density].fillOpacity + 0.18 })
+        );
+        poly.on("mouseout", () => poly.setStyle(zoneStyles[z.density]));
+      });
+
+      // ----- Sighting markers -----
+      const sightingIcon = L.divIcon({
+        className: "deer-pin",
+        html:
+          '<div style="width:28px;height:28px;border-radius:50% 50% 50% 0;background:#b13e3e;border:3px solid #fff;box-shadow:0 4px 10px rgba(0,0,0,.3);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;"><span style="transform:rotate(45deg)">🦌</span></div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -28],
+      });
+
+      function formatTime(date) {
+        const diffMs = Date.now() - date.getTime();
+        const diffMin = Math.round(diffMs / 60000);
+        if (diffMin < 10) return { label: "just now", fresh: true };
+        if (diffMin < 60) return { label: diffMin + " min ago", fresh: false };
+        const today = new Date();
+        const same = date.toDateString() === today.toDateString();
+        const tStr = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        if (same) return { label: tStr, fresh: false };
+        return {
+          label: date.toLocaleDateString([], { month: "short", day: "numeric" }) + " · " + tStr,
+          fresh: false,
+        };
+      }
+
+      const allSightings = [];
+var KEY = 'ppdt_sightings';
+
+function saveSightings() {
+  var plain = allSightings.map(function (s) {
+    return {
+      id: s.id,
+      lat: s.lat, lng: s.lng, location: s.location, group: s.group,
+      count: s.count, user: s.user, note: s.note,
+      photo: s.photo, when: s.when,
+      // Carry the sample flag through storage. Drop it here and the samples
+      // quietly become real entries the next time the page loads.
+      demo: s.demo === true ? true : undefined
+    };
+  });
+  try {
+    localStorage.setItem(KEY, JSON.stringify(plain));
+  } catch (e) {
+    if (e.name === 'QuotaExceededError')
+      toast('Storage is full — older sightings may not be saved.');
+  }
+}
+
+// Returning null here means "nothing saved" and the caller falls back to the
+// sample sightings. Every failure below has to return null rather than throw:
+// this function runs before the map is populated, so anything it throws takes
+// the whole page down with it and the visitor gets a blank site.
+function loadSightings() {
+  var raw;
+  try {
+    raw = localStorage.getItem(KEY);
+  } catch (e) {
+    // Some browsers block storage completely - strict privacy settings, and
+    // some private-browsing modes. Reading it THROWS rather than returning
+    // null. The site still has to work; it just cannot remember anything.
+    return null;
+  }
+  if (!raw) return null;
+
+  try {
+    var arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return null;      // something else wrote to our key
+    arr.forEach(function (s) {
+      s.when = new Date(s.when);
+      if (!s.id) s.id = makeId();   // data saved before ids existed
+    });
+    return arr;
+  } catch (e) {
+    // Corrupted storage. Without this catch the page stayed permanently blank
+    // and the only way out was clearing site data by hand - which no ordinary
+    // visitor would ever think to do.
+    return null;
+  }
+}
+
+
+      const markerLayer = L.featureGroup().addTo(map);
+
+      function renderSightingPopup(s) {
+        const t = formatTime(s.when);
+        return (
+          // thumbnail first, and only when the sighting actually has one
+          (s.photo ? '<img class="pop-photo" alt="Photo of this sighting" src="' + esc(s.photo) + '">' : "") +
+          "<b>" + esc(s.group) + " × " + esc(s.count) + "</b>" +
+          '<span class="pop-meta">' + esc(s.location) + "</span>" +
+          '<span class="pop-meta">' + esc(s.user) + "</span>" +
+          (s.demo
+            ? '<span class="pop-time">Sample entry — not a real report</span>'
+            : '<span class="pop-time' + (t.fresh ? " fresh" : "") + '">' +
+              (t.fresh ? "● " : "🕒 ") + esc(t.label) + "</span>") +
+          (s.note ? '<div style="margin-top:8px;color:#444">' + esc(s.note) + "</div>" : "")
+        );
+      }
+
+      // Every stat is recomputed from allSightings, never incremented.
+      // Incrementing works until something is removed, and then the numbers
+      // drift with nothing on screen to say they are wrong.
+      function refreshStats() {
+        const now = new Date();
+        const isToday = function (d) {
+          return d instanceof Date && !isNaN(d) &&
+            d.getFullYear() === now.getFullYear() &&
+            d.getMonth() === now.getMonth() &&
+            d.getDate() === now.getDate();
+        };
+
+        // Sample rows are on the map so it is not blank, but nobody reported
+        // them, so they are not counted anywhere. Every number below describes
+        // real entries only - which means they all start at zero, honestly.
+        const real = allSightings.filter(function (x) { return !x.demo; });
+
+        // The label says "Sightings today", so count today's - not all of them.
+        const todayCount = real.filter(function (x) { return isToday(x.when); }).length;
+        const deerTotal = real.reduce(function (a, x) { return a + (Number(x.count) || 0); }, 0);
+        const places = {};
+        real.forEach(function (x) { if (x.location) places[x.location] = 1; });
+
+        const set = function (id, v) {
+          const el = document.getElementById(id);
+          if (el) el.textContent = v.toLocaleString();
+        };
+        set("statSightings", todayCount);
+        set("statDeer", deerTotal);
+        set("statUsers", Object.keys(places).length);
+
+        const mc = document.getElementById("mapCount");
+        if (mc) {
+          const n = allSightings.length;   // pins on the map, samples included
+          const samples = n - real.length;
+          mc.textContent = n + (n === 1 ? " pin" : " pins") +
+            (samples ? " · " + samples + " sample" + (samples === 1 ? "" : "s") : "");
+        }
+      }
+
+      // Every sighting needs a name of its own. We used to use s.when.getTime()
+      // as the identity, which breaks in two ways: two sightings logged in the
+      // same millisecond collide, and back-dating two sightings to the same day
+      // at noon gives them the identical timestamp - so deleting one deleted the
+      // wrong row. This is the same reason a database gives every row an id.
+      function makeId() {
+        return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+      }
+
+      function addSighting(s, opts) {
+        opts = opts || {};
+        if (!s.id) s.id = makeId();
+        const m = L.marker([s.lat, s.lng], { icon: sightingIcon }).addTo(markerLayer);
+        m.bindPopup(renderSightingPopup(s));
+        s._marker = m;
+        allSightings.unshift(s);
+
+        renderFeed();
+        refreshStats();
+
+        if (opts.notify) {
+          toast(
+            s.group + " × " + s.count + " · " + s.location,
+            '<div style="opacity:.85;font-size:.85rem;margin-top:2px">New sighting just published</div>'
+          );
+        }
+        if (opts.flash) m.openPopup();
+
+        // Write the whole list to storage every time it changes.
+        saveSightings();
+      }
+
+      // 5 sample sightings, shown so the map is not blank for a first-time
+      // visitor. They used to be signed with five invented handles and dated
+      // "6 minutes ago" relative to whenever you loaded the page - so the site
+      // permanently looked like other people had just been using it.
+      // They are now labelled Sample on screen and are left out of every
+      // statistic, because nobody actually reported them.
+      // 5 fixed seed sightings — placed in plausible spots, including
+      // outside the zones (e.g. near Citadel Pond, near Magazine Fort).
+      const seed = [
+        {
+          // Near Citadel Pond, between Áras and Papal Cross zones
+          lat: 53.3601, lng: -6.3322, location: "Citadel Pond",
+          group: "Mixed herd", count: 14, user: "Example", demo: true,
+          note: "Drinking at the pond edge, very calm.",
+          when: new Date(Date.now() - 6 * 60000),
+        },
+        {
+          // Glen Pond / Quarry — north of Furry Glen, outside the zone
+          lat: 53.3625, lng: -6.3460, location: "Glen Pond",
+          group: "Fallow doe", count: 4, user: "Example", demo: true,
+          note: "Three does and a fawn at the water.",
+          when: new Date(Date.now() - 38 * 60000),
+        },
+        {
+          // Chesterfield Avenue — main road through the park
+          lat: 53.3556, lng: -6.3250, location: "Chesterfield Avenue",
+          group: "Fallow stag", count: 1, user: "Example", demo: true,
+          note: "Lone stag crossing the avenue near the People's Garden.",
+          when: new Date(Date.now() - 2 * 3600 * 1000 - 12 * 60000),
+        },
+        {
+          // Phoenix Monument — south-central
+          lat: 53.3537, lng: -6.3192, location: "Phoenix Monument",
+          group: "Mixed herd", count: 9, user: "Example", demo: true,
+          note: "Small group resting near the obelisk at sunrise.",
+          when: new Date(Date.now() - 5 * 3600 * 1000),
+        },
+        {
+          // Magazine Fort — far south of the park
+          lat: 53.3460, lng: -6.3275, location: "Magazine Fort",
+          group: "Fawn group", count: 3, user: "Example", demo: true,
+          note: "Three fawns following a doe along the southern edge.",
+          when: new Date(Date.now() - 9 * 3600 * 1000),
+        },
+      ];
+
+      // Restore what was saved last time. First visit -> fall back to seed.
+      // .slice() copies before .reverse(), which would otherwise reorder the
+      // original array in place; the .reverse() itself cancels out unshift().
+      var restored = loadSightings();
+      (restored || seed).slice().reverse().forEach(function (s) {
+        addSighting(s, { notify: false });
+      });
+
+      // Re-format times every minute so freshness pills keep accurate
+      setInterval(() => {
+        allSightings.forEach((s) => {
+          if (s._marker) s._marker.setPopupContent(renderSightingPopup(s));
+        });
+        renderFeed();
+      }, 60000);
+
+      // ----- Feed -----
+      // How many cards the feed shows before you ask for the rest.
+      var FEED_PAGE = 6;
+      var feedShowAll = false;
+
+      function renderFeed() {
+        const list = document.getElementById("feedList");
+
+        if (allSightings.length === 0) {
+          list.innerHTML =
+            '<article class="feed-card feed-empty"><div class="body">' +
+            "<h4>No sightings logged yet</h4>" +
+            '<p class="note">Seen deer in the park? Use the button on the map to ' +
+            "add the first one. Everything you log stays in this browser.</p>" +
+            "</div></article>";
+          return;
+        }
+
+        // Sort by the date shown on the card, not by the order things happened
+        // to be added. Back-dating a sighting used to push it to the top of the
+        // feed above things that were genuinely more recent.
+        var ordered = allSightings.slice().sort(function (a, b) {
+          return b.when - a.when;
+        });
+        // The feed used to hard-stop at 6, which meant the 7th sighting onwards
+        // had no Remove button and could not be deleted at all.
+        var shown = feedShowAll ? ordered : ordered.slice(0, FEED_PAGE);
+
+        list.innerHTML = shown
+          .map(function (s) {
+            const t = formatTime(s.when);
+            return (
+              '<article class="feed-card' + (s.demo ? " is-sample" : "") + '"><div class="body">' +
+              '<span class="feed-tag">' + esc(s.location) + "</span>" +
+              (s.demo ? '<span class="sample-tag">Sample</span>' : "") +
+              "<h4>" + esc(s.group) + " × " + esc(s.count) + "</h4>" +
+              '<div class="meta">' + esc(s.user) +
+              // A sample dated "6 minutes ago" every time the page loads is the
+              // part that actually misleads people. Samples show no time at all.
+              (s.demo
+                ? '<span class="time-pill">example</span>'
+                : '<span class="time-pill' + (t.fresh ? " fresh" : "") + '">' +
+                  (t.fresh ? "● " : "") + esc(t.label) + "</span>") + "</div>" +
+              (s.note ? '<p class="note">' + esc(s.note) + "</p>" : "") +
+              // the photo goes INSIDE the card body, after the note
+              (s.photo ? '<img class="feed-photo" alt="Photo of this sighting" src="' + esc(s.photo) + '">' : '') +
+              // The timestamp is the closest thing a sighting has to a name.
+              // Its position in the array is not: the list is re-sorted and
+              // re-rendered constantly, so index 3 is a different row a moment later.
+              '<button class="feed-del" type="button" data-id="' + esc(s.id) +
+              '" aria-label="Remove this sighting">Remove</button>' +
+              "</div></article>"
+            );
+          })
+          .join("");
+
+        // If anything is hidden, say so and offer a way to reach it. Without
+        // this the extra sightings exist but cannot be seen or deleted.
+        if (!feedShowAll && ordered.length > FEED_PAGE) {
+          list.insertAdjacentHTML(
+            "beforeend",
+            '<button class="feed-more" type="button">Show all ' +
+              ordered.length + " sightings</button>"
+          );
+        }
+      }
+
+      // One listener on the list, not one per card. renderFeed() throws away and
+      // rebuilds every card each time it runs, and any listener attached to a card
+      // dies with it. The list element survives, so this one does too.
+      document.getElementById("feedList").addEventListener("click", function (e) {
+        if (e.target.closest(".feed-more")) {
+          feedShowAll = true;
+          renderFeed();
+          return;
+        }
+
+        const btn = e.target.closest(".feed-del");
+        if (!btn) return;
+
+        if (!confirm("Remove this sighting? It is only stored in this browser, and this cannot be undone.")) return;
+
+        const id = btn.dataset.id;
+        const i = allSightings.findIndex(function (s) { return s.id === id; });
+        if (i < 0) return;
+
+        // A sighting lives in four places. Delete has to undo all four, and only
+        // one of them survives a reload - miss saveSightings() and the row comes
+        // back the next time the page loads.
+        if (allSightings[i]._marker) markerLayer.removeLayer(allSightings[i]._marker);  // 1. the map pin
+        allSightings.splice(i, 1);                                                      // 2. the array
+        saveSightings();                                                                // 3. storage
+        renderFeed();                                                                   // 4. the screen
+        refreshStats();
+
+        toast("Sighting removed", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>It is gone from this browser for good.</div>");
+      });
+      // (already rendered by addSighting() during seeding)
+
+      // ----- Map controls -----
+      let youMarker = null;
+      const youIcon = L.divIcon({
+        className: "you-pin",
+        html: '<div class="you-pin-wrap"><div class="you-pin-pulse"></div><div class="you-pin-dot"></div></div>',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      document.getElementById("mapFindMe").addEventListener("click", () => {
+        if (!("geolocation" in navigator)) {
+          toast("Geolocation unavailable", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>Your browser doesn't expose location.</div>");
+          return;
+        }
+        toast("Locating you…", "");
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
+            if (!PARK_BOUNDS.contains(ll)) {
+              toast(
+                "Outside Phoenix Park",
+                "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>Your GPS is " +
+                  Math.round(ll.distanceTo(L.latLng(PARK_CENTER))) +
+                  " m from the park centre. Pin not shown.</div>"
+              );
+              return;
+            }
+            if (youMarker) youMarker.remove();
+            youMarker = L.marker(ll, { icon: youIcon, zIndexOffset: 1000 })
+              .addTo(map)
+              .bindPopup("<b>You are here</b><br><span class='pop-meta'>Inside Phoenix Park</span>");
+            map.flyTo(ll, 16, { duration: 0.8 });
+          },
+          (err) => {
+            toast("Location blocked", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>" + err.message + "</div>");
+          },
+          { timeout: 8000, enableHighAccuracy: true, maximumAge: 60000 }
+        );
+      });
+
+      document.getElementById("mapRecenter").addEventListener("click", () => {
+        map.flyTo(PARK_CENTER, 14, { duration: 0.8 });
+      });
+
+      document.getElementById("mapExpand").addEventListener("click", () => {
+        const wrap = document.getElementById("mapWrap");
+        wrap.classList.toggle("expanded");
+        const btn = document.getElementById("mapExpand");
+        btn.textContent = wrap.classList.contains("expanded") ? "⤡ Collapse" : "⤢ Expand";
+        setTimeout(() => map.invalidateSize(), 320);
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        // Close the sighting form first if it is open - that is the thing
+        // the reader most likely wants to escape from.
+        const sm = document.getElementById("sightingModal");
+        if (sm && sm.classList.contains("show")) {
+          sm.classList.remove("show");
+          return;
+        }
+        const wrap = document.getElementById("mapWrap");
+        if (wrap.classList.contains("expanded")) {
+          wrap.classList.remove("expanded");
+          document.getElementById("mapExpand").textContent = "⤢ Expand";
+          setTimeout(() => map.invalidateSize(), 320);
+        }
+        document.getElementById("sightingModal").classList.remove("show");
+      });
+
+      // ----- Form -----
+      // Drop near the chosen location (with small jitter), bounded inside park.
+      const locationAnchors = {
+        "Fifteen Acres": [53.3525, -6.3340],
+        "Furry Glen": [53.3580, -6.3470],
+        "Phoenix Monument": [53.3537, -6.3192],
+        "Wellington Monument": [53.3500, -6.3198],
+        "Papal Cross": [53.3596, -6.3380],
+        "Magazine Fort": [53.3458, -6.3265],
+        "Áras an Uachtaráin perimeter": [53.3615, -6.3300],
+        "Chesterfield Avenue": [53.3560, -6.3250],
+        "Glen Pond": [53.3625, -6.3460],
+        "Citadel Pond": [53.3601, -6.3322],
+      };
+
+      function jitter(anchor, m) {
+        // ~m metres of jitter
+        const dLat = (Math.random() - 0.5) * (m / 111000) * 2;
+        const dLng = (Math.random() - 0.5) * (m / (111000 * Math.cos(anchor[0] * Math.PI / 180))) * 2;
+        const ll = L.latLng(anchor[0] + dLat, anchor[1] + dLng);
+        return PARK_BOUNDS.contains(ll) ? [ll.lat, ll.lng] : anchor;
+      }
+
+      // ===== "Use my current location" button in the sighting form =====
+      // When set, we use these exact coords for the marker (no jitter, no
+      // dropdown anchor). Cleared if the user manually changes the dropdown
+      // or the form is submitted/reset.
+      let capturedGps = null;
+      const useGpsBtn = document.getElementById("useGpsBtn");
+      const gpsStatus = document.getElementById("gpsStatus");
+      const locationInput = document.getElementById("locationInput");
+
+      function setGpsStatus(cls, html) {
+        gpsStatus.className = "gps-status " + cls;
+        gpsStatus.innerHTML = html;
+      }
+      function clearGpsCapture() {
+        capturedGps = null;
+        gpsStatus.className = "gps-status";
+        gpsStatus.innerHTML = "";
+      }
+
+      function nearestLandmark(lat, lng) {
+        const here = L.latLng(lat, lng);
+        let bestName = null, bestDist = Infinity;
+        Object.keys(locationAnchors).forEach((name) => {
+          const a = locationAnchors[name];
+          const d = here.distanceTo(L.latLng(a[0], a[1]));
+          if (d < bestDist) { bestDist = d; bestName = name; }
+        });
+        return { name: bestName, distance: Math.round(bestDist) };
+      }
+
+      useGpsBtn.addEventListener("click", () => {
+        if (!("geolocation" in navigator)) {
+          setGpsStatus("err", "❌ Geolocation isn&rsquo;t available in your browser.");
+          return;
+        }
+        setGpsStatus("pending", "📡 Locating you&hellip;");
+        useGpsBtn.disabled = true;
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            useGpsBtn.disabled = false;
+            const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
+            if (!PARK_BOUNDS.contains(ll)) {
+              const km = (ll.distanceTo(L.latLng(PARK_CENTER)) / 1000).toFixed(1);
+              setGpsStatus(
+                "err",
+                "❌ You&rsquo;re " + esc(km) + " km from Phoenix Park. Pick a location manually."
+              );
+              capturedGps = null;
+              return;
+            }
+            capturedGps = { lat: ll.lat, lng: ll.lng };
+            const near = nearestLandmark(ll.lat, ll.lng);
+            // Snap the dropdown to the nearest known landmark (without
+            // clearing the captured coords — change handler distinguishes).
+            const opt = Array.from(locationInput.options).find((o) => o.value === near.name);
+            if (opt) {
+              gpsLockingDropdown = true;
+              locationInput.value = near.name;
+              gpsLockingDropdown = false;
+            }
+            setGpsStatus(
+              "ok",
+              "✓ Using GPS · " + esc(ll.lat.toFixed(5)) + ", " + esc(ll.lng.toFixed(5)) +
+                "<br><span style=\"opacity:.8\">Nearest landmark: " + esc(near.name) +
+                " (~" + esc(near.distance) + " m)</span>"
+            );
+          },
+          (err) => {
+            useGpsBtn.disabled = false;
+            setGpsStatus("err", "❌ " + esc(err.message || "Could not get your location."));
+            capturedGps = null;
+          },
+          { timeout: 8000, enableHighAccuracy: true, maximumAge: 60000 }
+        );
+      });
+
+      // If the user manually picks a location after enabling GPS, drop the
+      // captured coords and fall back to the anchor-with-jitter behaviour.
+      let gpsLockingDropdown = false;
+      locationInput.addEventListener("change", () => {
+        if (gpsLockingDropdown) return;
+        if (capturedGps) {
+          capturedGps = null;
+          setGpsStatus("muted", "Manual location selected — GPS coords cleared.");
+        }
+      });
+
+      document.getElementById("modalClose").addEventListener("click", function () {
+        document.getElementById("sightingModal").classList.remove("show");
+      });
+
+      document.getElementById("sightingForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const loc = document.getElementById("locationInput").value;
+        const ll = capturedGps
+          ? [capturedGps.lat, capturedGps.lng]
+          : jitter(locationAnchors[loc] || PARK_CENTER, 90);
+        addSighting(
+          {
+            photo: pendingPhoto,
+            lat: ll[0],
+            lng: ll[1],
+            location: loc,
+            group: document.getElementById("speciesInput").value,
+            count: parseInt(document.getElementById("countInput").value, 10),
+            user: window.PPDT_USER || "@you",
+            note: document.getElementById("noteInput").value,
+            // Use the date the visitor actually chose. Today -> now (so it reads
+
+            // "just now"); any earlier day -> midday on that day, because a
+
+            // <input type="date"> gives us no time of day.
+
+            when: whenFromForm(),
+          },
+          { flash: true, notify: true }
+        );
+        pendingPhoto = null;
+        document.getElementById("sightingModal").classList.remove("show");
+        e.target.reset();
+        prefillDate();
+        clearGpsCapture();
+      });
+
+      // ===== Ratings =====
+      // There used to be eight reviews here, signed with invented names, and a
+      // rating of 4.7 from 487 people. None of it had ever happened. Anyone who
+      // opened View Source could read the list of made-up names.
+      // The site now starts with nothing, because that is the truth.
+      const seedRatings = [];
+
+      function starString(n) {
+        const full = Math.floor(n);
+        const half = n - full >= 0.5;
+        return "★".repeat(full) + (half ? "½" : "") + "☆".repeat(5 - full - (half ? 1 : 0));
+      }
+
+      // Reviews used to live only in this variable, so submitting one and then
+      // reloading threw it away - while the toast said it had been saved.
+      // They now go to localStorage, same as the sightings do.
+      const RATINGS_KEY = "ppdt_ratings_v1";
+
+      function loadRatings() {
+        try {
+          const raw = localStorage.getItem(RATINGS_KEY);
+          if (!raw) return seedRatings.slice();
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : seedRatings.slice();
+        } catch (e) {
+          return seedRatings.slice();   // corrupted storage must not blank the page
+        }
+      }
+
+      function saveRatings() {
+        try {
+          localStorage.setItem(RATINGS_KEY, JSON.stringify(ratings));
+        } catch (e) {
+          if (e.name === "QuotaExceededError")
+            toast("Storage is full — your review may not be saved.");
+        }
+      }
+
+      const ratings = loadRatings();
+
+      const ratingTrackEl = document.getElementById("ratingTrack");
+
+      // On a touch screen there is no hover, so the CSS pause never fires and
+      // the reviews scroll past forever. Start still, let a tap roll them.
+      (function () {
+        if (!window.matchMedia("(max-width: 720px)").matches) return;
+        const mask = document.querySelector(".rating-track-mask");
+        if (!mask) return;
+        mask.style.cursor = "pointer";
+        mask.title = "Tap to start or stop";
+        mask.addEventListener("click", function () {
+          ratingTrackEl.classList.toggle("rolling");
+        });
+      })();
+      function renderRatings() {
+        // Every list can be empty, and the code that follows nearly always
+        // assumes it isn't. With no reviews, 0/0 is NaN, so the page used to
+        // advertise "NaN / 5". Handle the empty case first.
+        if (ratings.length === 0) {
+          ratingTrackEl.classList.add("is-empty");
+          ratingTrackEl.innerHTML =
+            '<article class="rating-card rating-empty">' +
+            "<p>No reviews yet. This site went up this month — " +
+            "if you have walked the park, you would be the first.</p>" +
+            '<div class="who">Use the form below</div>' +
+            "</article>";
+          document.getElementById("avgRating").textContent = "—";
+          document.getElementById("avgStars").textContent = "☆☆☆☆☆";
+          document.getElementById("ratingCount").textContent = "0";
+          return;
+        }
+
+        ratingTrackEl.classList.remove("is-empty");
+        // duplicate for seamless infinite scroll
+        ratingTrackEl.innerHTML = ratings
+          .concat(ratings)
+          .map(function (r) {
+            return (
+              '<article class="rating-card">' +
+              '<div class="stars">' + starString(r.stars) + " · " + r.stars.toFixed(1) + "</div>" +
+              "<p>“" + esc(r.text) + "”</p>" +
+              '<div class="who">— ' + esc(r.name) + "</div>" +
+              "</article>"
+            );
+          })
+          .join("");
+
+        const avg = ratings.reduce((a, b) => a + b.stars, 0) / ratings.length;
+        document.getElementById("avgRating").textContent = avg.toFixed(1);
+        document.getElementById("avgStars").textContent = starString(avg);
+        // The count used to be 487 + however many were added. Every number it
+        // could ever show was 487 too high. It is just the real count now.
+        document.getElementById("ratingCount").textContent = ratings.length.toLocaleString();
+      }
+      renderRatings();
+
+      const slider = document.getElementById("ratingSlider");
+      const sliderValue = document.getElementById("sliderValue");
+      const sliderStars = document.getElementById("sliderStars");
+
+      function syncSlider() {
+        const v = parseFloat(slider.value);
+        const pct = ((v - 1) / 4) * 100;
+        slider.style.setProperty("--pct", pct + "%");
+        sliderValue.textContent = v.toFixed(1);
+        sliderStars.textContent = starString(v);
+      }
+      slider.addEventListener("input", syncSlider);
+      syncSlider();
+      function compress(file, maxWidth, quality, done) {
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    var img = new Image();
+    img.onload = function () {
+      var scale = Math.min(1, maxWidth / img.width);
+      var canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      done(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+      var pendingPhoto = null;   // holds it until submit  暂存到提交为止
+
+      document.getElementById('photoInput').addEventListener('change', function () {
+        var f = this.files[0];
+        if (!f) { pendingPhoto = null; return; }
+
+        compress(f, 550, 0.2, function (small) {   // ← your numbers 你们的数字
+          pendingPhoto = small;
+          var prev = document.getElementById('photoPreview');
+          prev.src = small;
+          prev.style.display = 'block';
+        });
+      });
+      document.getElementById("rateSubmit").addEventListener("click", () => {
+        const stars = parseFloat(slider.value);
+        const note = document.getElementById("rateNote").value.trim();
+        if (!note) {
+          toast("Add a quick note", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>Tell other visitors what you saw.</div>");
+          return;
+        }
+        const name = document.getElementById("rateName").value.trim() || window.PPDT_USER || "Anonymous";
+        ratings.unshift({ stars: stars, name: name, text: note });
+        saveRatings();          // without this the review is gone on reload
+        renderRatings();
+        document.getElementById("rateNote").value = "";
+        document.getElementById("rateName").value = "";
+        toast("Thanks for the rating!", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>Your review is now in the carousel.</div>");
+      });
+    </script>
+  </body>
+</html>
