@@ -613,6 +613,20 @@
       /* With nothing to scroll there is nothing to animate - a single card
          sliding off the screen forever just looks broken. */
       .rating-track.is-empty { animation: none; }
+      .rating-del {
+        margin-left: 8px;
+        background: none;
+        border: 1px solid rgba(139, 26, 26, 0.35);
+        color: #8b1a1a;
+        border-radius: 5px;
+        padding: 1px 7px;
+        font: inherit;
+        font-size: 0.72rem;
+        cursor: pointer;
+        opacity: 0.75;
+      }
+      .rating-del:hover { opacity: 1; background: rgba(139, 26, 26, 0.07); }
+
       .rating-card.rating-empty {
         border-style: dashed;
         opacity: 0.85;
@@ -1071,10 +1085,9 @@
           has roamed these 1,750 acres since 1662.
         </p>
         <p class="hero-note">
-          Sightings you post are visible to everyone who opens this page.
-          Ratings are still saved on your device only. An independent student
-          project — not affiliated with the OPW or the official management of
-          Phoenix Park.
+          Everything you post here — sightings and reviews — is visible to
+          everyone who opens this page. An independent student project — not
+          affiliated with the OPW or the official management of Phoenix Park.
         </p>
         <button class="hero-cta" onclick="document.getElementById('sightingModal').classList.add('show')">
           Log a sighting →
@@ -2109,29 +2122,63 @@ function fromServer(row) {
       // Reviews used to live only in this variable, so submitting one and then
       // reloading threw it away - while the toast said it had been saved.
       // They now go to localStorage, same as the sightings do.
-      const RATINGS_KEY = "ppdt_ratings_v1";
+      // Reviews were the last thing still living in localStorage. They are on
+      // the server now, like sightings - same delete-key idea, same shape of
+      // code, deliberately.
+      var RATINGS_API = "/api/ratings";
+      var RATING_KEYS = "ppdt_rating_keys";
 
-      function loadRatings() {
+      function readRatingKeys() {
         try {
-          const raw = localStorage.getItem(RATINGS_KEY);
-          if (!raw) return seedRatings.slice();
-          const parsed = JSON.parse(raw);
-          return Array.isArray(parsed) ? parsed : seedRatings.slice();
+          return JSON.parse(localStorage.getItem(RATING_KEYS) || "{}") || {};
         } catch (e) {
-          return seedRatings.slice();   // corrupted storage must not blank the page
+          return {};
         }
       }
 
-      function saveRatings() {
+      function rememberRatingKey(id, key) {
         try {
-          localStorage.setItem(RATINGS_KEY, JSON.stringify(ratings));
-        } catch (e) {
-          if (e.name === "QuotaExceededError")
-            toast("Storage is full — your review may not be saved.");
-        }
+          var all = readRatingKeys();
+          all[id] = key;
+          localStorage.setItem(RATING_KEYS, JSON.stringify(all));
+        } catch (e) {}
       }
 
-      const ratings = loadRatings();
+      function forgetRatingKey(id) {
+        try {
+          var all = readRatingKeys();
+          delete all[id];
+          localStorage.setItem(RATING_KEYS, JSON.stringify(all));
+        } catch (e) {}
+      }
+
+      // Filled by loadRatingsFromServer() below. Starts empty rather than
+      // starting with invented reviews.
+      var ratings = [];
+
+      function loadRatingsFromServer() {
+        return fetch(RATINGS_API, { headers: { accept: "application/json" } })
+          .then(function (res) {
+            if (!res.ok) throw new Error("server said " + res.status);
+            return res.json();
+          })
+          .then(function (data) {
+            var keys = readRatingKeys();
+            ratings = (data.ratings || []).map(function (r) {
+              return {
+                id: r.id, stars: r.stars, name: r.name, text: r.text,
+                mine: !!keys[r.id]
+              };
+            });
+            renderRatings();
+          })
+          .catch(function (err) {
+            ratingTrackEl.classList.add("is-empty");
+            ratingTrackEl.innerHTML =
+              '<article class="rating-card rating-empty"><p>Could not load the ' +
+              "reviews from the server. (" + esc(err.message) + ")</p></article>";
+          });
+      }
 
       const ratingTrackEl = document.getElementById("ratingTrack");
 
@@ -2155,8 +2202,8 @@ function fromServer(row) {
           ratingTrackEl.classList.add("is-empty");
           ratingTrackEl.innerHTML =
             '<article class="rating-card rating-empty">' +
-            "<p>No reviews yet. Reviews are saved in this browser — " +
-            "if you have walked the park, you would be the first.</p>" +
+            "<p>No reviews yet — if you have walked the park, you would be " +
+            "the first to say what it was like.</p>" +
             '<div class="who">Use the form below</div>' +
             "</article>";
           document.getElementById("avgRating").textContent = "—";
@@ -2174,7 +2221,14 @@ function fromServer(row) {
               '<article class="rating-card">' +
               '<div class="stars">' + starString(r.stars) + " · " + r.stars.toFixed(1) + "</div>" +
               "<p>“" + esc(r.text) + "”</p>" +
-              '<div class="who">— ' + esc(r.name) + "</div>" +
+              '<div class="who">— ' + esc(r.name) +
+              // Reviews used to have no way to be removed at all - odd on a page
+              // where a sighting could be. Only your own get a button.
+              (r.mine
+                ? ' <button class="rating-del" type="button" data-rid="' + esc(r.id) +
+                  '" aria-label="Remove your review">remove</button>'
+                : "") +
+              "</div>" +
               "</article>"
             );
           })
@@ -2187,7 +2241,35 @@ function fromServer(row) {
         // could ever show was 487 too high. It is just the real count now.
         document.getElementById("ratingCount").textContent = ratings.length.toLocaleString();
       }
-      renderRatings();
+      // One listener for the whole carousel: renderRatings() rebuilds every
+      // card, so a listener on a card would not survive.
+      ratingTrackEl.addEventListener("click", function (e) {
+        var b = e.target.closest(".rating-del");
+        if (!b) return;
+        var id = b.dataset.rid;
+        var key = readRatingKeys()[id];
+        if (!key) { toast("You can only remove reviews you left from this browser."); return; }
+        if (!confirm("Remove your review? It disappears for everyone.")) return;
+
+        b.disabled = true;
+        fetch(RATINGS_API + "/" + encodeURIComponent(id), {
+          method: "DELETE",
+          headers: { "x-delete-key": key }
+        })
+          .then(function (res) {
+            if (!res.ok) throw new Error("server said " + res.status);
+            ratings = ratings.filter(function (r) { return r.id !== id; });
+            forgetRatingKey(id);
+            renderRatings();
+            toast("Review removed");
+          })
+          .catch(function (err) {
+            b.disabled = false;
+            toast("Could not remove it", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>" + esc(err.message) + "</div>");
+          });
+      });
+
+      loadRatingsFromServer();
 
       const slider = document.getElementById("ratingSlider");
       const sliderValue = document.getElementById("sliderValue");
@@ -2240,12 +2322,40 @@ function fromServer(row) {
           return;
         }
         const name = document.getElementById("rateName").value.trim() || window.PPDT_USER || "Anonymous";
-        ratings.unshift({ stars: stars, name: name, text: note });
-        saveRatings();          // without this the review is gone on reload
-        renderRatings();
-        document.getElementById("rateNote").value = "";
-        document.getElementById("rateName").value = "";
-        toast("Thanks for the rating!", "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>Your review is now in the carousel.</div>");
+        var btn = document.getElementById("rateSubmit");
+        btn.disabled = true;
+        btn.textContent = "Sending…";
+
+        fetch(RATINGS_API, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ stars: stars, name: name, text: note })
+        })
+          .then(function (res) {
+            return res.json().then(function (data) {
+              if (!res.ok) throw new Error(data.error || "server said " + res.status);
+              return data;
+            });
+          })
+          .then(function (data) {
+            rememberRatingKey(data.id, data.delete_key);
+            ratings.unshift({
+              id: data.id, stars: stars, name: data.name, text: note, mine: true
+            });
+            renderRatings();
+            document.getElementById("rateNote").value = "";
+            document.getElementById("rateName").value = "";
+            toast("Thanks for the rating!",
+              "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>Everyone can read it now.</div>");
+          })
+          .catch(function (err) {
+            toast("Could not send it",
+              "<div style='opacity:.85;font-size:.85rem;margin-top:2px'>" + esc(err.message) + "</div>");
+          })
+          .then(function () {
+            btn.disabled = false;
+            btn.textContent = "Submit rating";
+          });
       });
     </script>
   </body>

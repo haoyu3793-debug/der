@@ -39,3 +39,24 @@ create table sightings (
 -- The feed asks for the newest sightings, over and over. Without this index
 -- SQLite reads and sorts the whole table every time.
 create index sightings_seen_at on sightings (seen_at desc);
+
+-- ------------------------------------------------------------------
+-- Ratings
+--
+-- These were the last thing still living in localStorage: you could leave a
+-- review and nobody else could ever read it, on a site whose whole point is
+-- that people can see each other's contributions.
+-- ------------------------------------------------------------------
+
+drop table if exists ratings;
+
+create table ratings (
+  id          text    primary key,
+  stars       real    not null check (stars >= 1 and stars <= 5),
+  name        text    not null,
+  text        text    not null,
+  delete_key  text    not null,      -- same idea as sightings
+  created_at  text    not null
+) strict;
+
+create index ratings_created_at on ratings (created_at desc);

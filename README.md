@@ -67,7 +67,8 @@ there.
 | D1 (Cloudflare's SQLite), table `sightings` | Every sighting: who, what, where, when, and the photo |
 | `localStorage` → `ppdt_delete_keys` | The secrets that prove *this* browser posted a given sighting |
 | `localStorage` → `ppdt_username` | The `@handle` generated on first visit |
-| `localStorage` → `ppdt_ratings_v1` | **Ratings are still local only.** Not migrated yet — see below |
+| D1, table `ratings` | Every review: stars, name, text |
+| `localStorage` → `ppdt_rating_keys` | The secrets proving *this* browser left a given review |
 
 ### How deleting works without accounts
 
@@ -83,15 +84,6 @@ list everybody reads.
 The trade is real and worth saying out loud: **clear your browser data and you
 can no longer delete the sightings you posted.** They stay up. That is the
 price of not asking anybody for an email address.
-
-### Still unfinished
-
-Ratings were never migrated. They are written to `localStorage` exactly as they
-always were, so a review you leave is visible only to you — while a sighting
-you post is visible to everyone. The site now behaves two different ways in two
-places, and the hero text says so rather than pretending otherwise. Migrating
-them is the same job as the sightings: a table, two endpoints, and replacing
-`loadRatings`/`saveRatings` with `fetch`.
 
 ## Traps — the things that will bite the next person
 
@@ -154,9 +146,6 @@ everybody. The server checks the *shape* of a sighting — a count between 1 and
 it cannot check intent, and the note field is free text. For a site nobody has
 heard of this is fine. The day it gets shared widely it stops being fine, and
 the fix is a `status` column defaulting to `pending` plus a page to approve rows.
-
-**Ratings are still device-local.** Sightings are shared; reviews are not. The
-homepage says so, but it is an inconsistency, not a design.
 
 **There is no privacy policy.** The site now stores what people type on a
 server, which is a much bigger deal than it was when everything stayed in the
