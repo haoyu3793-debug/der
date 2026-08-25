@@ -272,10 +272,16 @@
       }
 
       .disclaimer {
-        margin: 14px 0 0;
-        font-size: 0.78rem;
-        color: var(--sage);
+        margin: 0 0 22px;
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        line-height: 1.55;
+        color: var(--forest);
+        background: var(--gold-soft);
+        border-left: 4px solid var(--gold);
+        border-radius: 0 8px 8px 0;
       }
+      .disclaimer strong { color: var(--bark); }
 
       /* Navbar (themes partials.js) */
       .navbar {
@@ -459,7 +465,6 @@
           <p>Buys winter feed for one fawn</p>
         </button>
         <button type="button" class="tier selected" data-amount="25">
-          <div class="tier-badge">Most chosen</div>
           <span class="amount">€25</span>
           <p>Funds an hour of ranger patrol</p>
         </button>
@@ -477,6 +482,14 @@
         <h2>Your details</h2>      </div>
 
       <form class="donate-form" id="donateForm">
+        <!-- This used to sit under the button, in 0.78rem sage - you only found
+             out it was a demo after you had filled the form in. -->
+        <p class="disclaimer">
+          <strong>This is a demo page.</strong> No payment is taken, and the name
+          and email you type here are not sent anywhere or stored anywhere —
+          they are discarded the moment you press the button.
+        </p>
+
         <label for="donateAmount">Amount (EUR)</label>
         <input type="number" id="donateAmount" min="1" step="1" value="25" required />
 
@@ -497,7 +510,6 @@
         </div>
 
         <button type="submit">💚 Donate now</button>
-        <p class="disclaimer">This is a demo page — no payment will be processed.</p>
       </form>
     </main>
 

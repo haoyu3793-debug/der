@@ -82,11 +82,17 @@ try {
             try {
                 $bytes = [System.IO.File]::ReadAllBytes($file)
                 $res.ContentLength64 = $bytes.Length
-                $res.OutputStream.Write($bytes, 0, $bytes.Length)
-                Write-Host ("  200  {0,-50}  {1}" -f $req.Url.AbsolutePath, $type) -ForegroundColor DarkGreen
+                # A HEAD request wants the headers and nothing else. Writing a body
+                # to it throws, and this used to fall into the catch below and answer
+                # 500 - to every link-preview bot that checks a URL with HEAD before
+                # fetching it, which is how WhatsApp and Slack decide what to show.
+                if ($req.HttpMethod -ne "HEAD") {
+                    $res.OutputStream.Write($bytes, 0, $bytes.Length)
+                }
+                Write-Host ("  {0,-4} {1,-50}  {2}" -f "200", $req.Url.AbsolutePath, $type) -ForegroundColor DarkGreen
             } catch {
                 $res.StatusCode = 500
-                Write-Host ("  500  {0}" -f $req.Url.AbsolutePath) -ForegroundColor Red
+                Write-Host ("  500  {0}  {1}" -f $req.Url.AbsolutePath, $_.Exception.Message) -ForegroundColor Red
             }
         } else {
             $res.StatusCode = 404

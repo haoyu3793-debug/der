@@ -1086,7 +1086,7 @@
       <div class="section-head">
         <div>
           <h2>Today at a glance</h2>
-          <p class="section-sub">Community totals across the park</p>
+          <p class="section-sub">Your totals — counted from the sightings saved in this browser</p>
         </div>
       </div>
 
@@ -1167,7 +1167,7 @@
       <div class="section-head">
         <div>
           <h2>Latest sightings</h2>
-          <p class="section-sub">Recent community reports</p>
+          <p class="section-sub">Sightings saved in this browser</p>
         </div>
       </div>
 
@@ -1254,7 +1254,7 @@
             <div id="gpsStatus" class="gps-status"></div>
             <input type="number" id="countInput" min="1" max="200" placeholder="How many deer?" required />
             <textarea id="noteInput" placeholder="Notes (optional)…"></textarea>
-            <button type="submit">✅ Publish sighting</button>
+            <button type="submit">✅ Save sighting</button>
           </form>
         </div>
       </div>
@@ -1600,7 +1600,7 @@ function loadSightings() {
         if (opts.notify) {
           toast(
             s.group + " × " + s.count + " · " + s.location,
-            '<div style="opacity:.85;font-size:.85rem;margin-top:2px">New sighting just published</div>'
+            '<div style="opacity:.85;font-size:.85rem;margin-top:2px">Saved to this browser</div>'
           );
         }
         if (opts.flash) m.openPopup();
@@ -2049,7 +2049,7 @@ function loadSightings() {
           ratingTrackEl.classList.add("is-empty");
           ratingTrackEl.innerHTML =
             '<article class="rating-card rating-empty">' +
-            "<p>No reviews yet. This site went up this month — " +
+            "<p>No reviews yet. Reviews are saved in this browser — " +
             "if you have walked the park, you would be the first.</p>" +
             '<div class="who">Use the form below</div>' +
             "</article>";
