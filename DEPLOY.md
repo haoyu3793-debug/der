@@ -48,7 +48,7 @@ The first push opens a browser window asking you to sign in to GitHub. That is
 Git Credential Manager, which ships with Git for Windows — it remembers the
 login, so this happens once.
 
-**1.3** Refresh the GitHub page. You should see 26 files.
+**1.3** Refresh the GitHub page. You should see 27 files.
 
 ---
 
