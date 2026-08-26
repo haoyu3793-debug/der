@@ -16,27 +16,77 @@
     .\serve.ps1
     .\serve.ps1 -Port 9000
 #>
-param([int]$Port = 8080)
+param(
+    [int]$Port = 8080,
+    # -Lan makes the server answer other devices on the same wifi, so you can
+    # open the site on a phone. Without it the server only answers this
+    # computer, which is why "it works on my laptop" is never proof of anything.
+    [switch]$Lan
+)
 
 Add-Type -AssemblyName System.Web
 
 $root = $PSScriptRoot
 $listener = [System.Net.HttpListener]::new()
-$prefix = "http://localhost:$Port/"
+
+if ($Lan) {
+    # "+" means every network card on this machine. Windows requires this to be
+    # run from an Administrator PowerShell (or a one-off url reservation),
+    # because letting any program answer the network is a privilege.
+    $prefix = "http://+:$Port/"
+} else {
+    $prefix = "http://localhost:$Port/"
+}
 $listener.Prefixes.Add($prefix)
 
 try {
     $listener.Start()
 } catch {
     Write-Host "Could not bind to $prefix" -ForegroundColor Red
-    Write-Host "Is something else using port $Port? Try: .\serve.ps1 -Port 8081" -ForegroundColor Yellow
+    if ($Lan) {
+        Write-Host ""
+        Write-Host "-Lan needs an Administrator PowerShell." -ForegroundColor Yellow
+        Write-Host "Right-click PowerShell -> Run as administrator, then try again." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Or reserve the port once, as administrator, and then you never" -ForegroundColor Gray
+        Write-Host "need admin for it again:" -ForegroundColor Gray
+        Write-Host "    netsh http add urlacl url=http://+:$Port/ user=$env:USERNAME" -ForegroundColor Cyan
+    } else {
+        Write-Host "Is something else using port $Port? Try: .\serve.ps1 -Port 8081" -ForegroundColor Yellow
+    }
     exit 1
 }
+
+# The address other devices have to type. There is usually more than one network
+# card - the wifi one is what a phone can reach.
+$lanIps = @()
+try {
+    $lanIps = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+        Where-Object { $_.IPAddress -notlike "127.*" -and $_.PrefixOrigin -ne "WellKnown" } |
+        Select-Object -ExpandProperty IPAddress
+} catch { }
 
 Write-Host ""
 Write-Host "Phoenix Park Deer Tracker - local server" -ForegroundColor Green
 Write-Host "Serving:    $root" -ForegroundColor Gray
-Write-Host "Local URL:  http://localhost:$Port/" -ForegroundColor Cyan
+Write-Host "On this pc: http://localhost:$Port/" -ForegroundColor Cyan
+
+if ($Lan) {
+    Write-Host ""
+    Write-Host "On a phone (same wifi), type one of these:" -ForegroundColor Green
+    foreach ($ip in $lanIps) {
+        Write-Host "            http://${ip}:$Port/" -ForegroundColor Cyan
+    }
+    Write-Host ""
+    Write-Host "If the phone cannot reach it, it is almost always one of:" -ForegroundColor Gray
+    Write-Host "  - the phone is on mobile data, not the wifi" -ForegroundColor Gray
+    Write-Host "  - Windows Firewall asked and you said no (allow Private networks)" -ForegroundColor Gray
+    Write-Host "  - the wifi has client isolation on (common in cafes and schools)" -ForegroundColor Gray
+} else {
+    Write-Host ""
+    Write-Host "Only this computer can reach it. For a phone: .\serve.ps1 -Lan" -ForegroundColor Gray
+}
+Write-Host ""
 Write-Host "Press Ctrl+C to stop." -ForegroundColor Gray
 Write-Host ""
 
