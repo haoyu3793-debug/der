@@ -14,4 +14,4 @@ compatibility_date = "2026-08-25"
 [[d1_databases]]
 binding = "DB"                 # the name the code uses: env.DB
 database_name = "deer-tracker"
-database_id = "PASTE-THE-ID-FROM-wrangler-d1-create-HERE"
+database_id = "9651e1c0-1341-479b-ac00-5a6d0c4bf717"
