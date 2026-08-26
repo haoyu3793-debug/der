@@ -6,16 +6,16 @@
     <title>Deer Encyclopedia · Phoenix Park</title>
     <!-- Shared-link preview. Without these, pasting the address into WhatsApp
          or WeChat produces a bare link with no title, no summary and no image.
-         og:image and og:url are relative; most scrapers resolve them against
-         the page, but once this site has a real domain make them absolute
-         (https://your-domain/...) so every scraper agrees. -->
+         og:image is absolute rather than relative: some scrapers resolve a
+         relative path against the page and some silently drop it, and there
+         is no second chance — previews are cached the first time. -->
     <meta name="description" content="A guide to the fallow deer of Phoenix Park, Dublin — telling stags from does, the autumn rut, and how close is too close." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Phoenix Park Deer Tracker" />
     <meta property="og:locale" content="en_IE" />
     <meta property="og:title" content="Deer Encyclopedia · Phoenix Park" />
     <meta property="og:description" content="A guide to the fallow deer of Phoenix Park, Dublin — telling stags from does, the autumn rut, and how close is too close." />
-    <meta property="og:image" content="assets/hero-1600.jpg" />
+    <meta property="og:image" content="https://deer-tracker-983.pages.dev/assets/hero-1600.jpg" />
     <meta property="og:image:alt" content="Fallow deer in Phoenix Park, Dublin" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Deer Encyclopedia · Phoenix Park" />
