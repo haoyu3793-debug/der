@@ -22,3 +22,7 @@ desktop.ini
 # Tunnel and server bookkeeping
 *.pid
 *.log
+
+# Wrangler's local cache. Holds your Cloudflare account id; not secret, but it
+# is machine-local bookkeeping and does not belong in the repository.
+.wrangler/
