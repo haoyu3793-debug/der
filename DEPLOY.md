@@ -75,8 +75,25 @@ Connect to Git**.
 > And do **not** put `deer-simulator` in the output directory. That folder is
 > the repository root; there is no folder of that name inside it.
 
+> **Important:** If the deployment log says `wrangler deploy`, the Cloudflare
+> **Build command** still contains the wrong command. Delete it completely and
+> leave the field empty. `wrangler deploy` expects a standalone Worker script;
+> this project is deployed as Pages.
+
 **2.4** **Save and Deploy.** About a minute later you get a URL like
 `deer-tracker-a1b.pages.dev`, with HTTPS already working.
+
+### Deploying from the command line instead
+
+Run this from the directory containing `wrangler.toml`:
+
+```bash
+wrangler pages deploy .
+```
+
+This is a **Pages** deployment. Do not run `wrangler deploy`: that command is
+for a standalone Worker and expects a Worker entry-point such as `src/index.js`.
+This project has Pages Functions under `functions/` instead.
 
 ---
 

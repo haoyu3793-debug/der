@@ -2,6 +2,8 @@
 #
 # This file tells Cloudflare that the functions in functions/ can reach a
 # database, and what to call it in the code (env.DB).
+# This is a Cloudflare Pages project. Deploy it with `wrangler pages deploy .`,
+# not `wrangler deploy` (the latter expects a Worker entry-point).
 #
 # You need to fill in database_id once, after creating the database:
 #   wrangler d1 create deer-tracker
