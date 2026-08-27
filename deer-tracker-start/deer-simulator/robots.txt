@@ -1,0 +1,14 @@
+# Phoenix Park Deer Tracker
+# Everything here is public and safe to index.
+
+User-agent: *
+Allow: /
+
+# The API is for the page, not for a crawler. /api/auth/me in particular
+# answers "who is asking?", which is a different answer for every visitor and
+# not something worth having in a search index.
+Disallow: /api/
+
+# There is no sitemap yet. A sitemap has to list absolute URLs, so it cannot be
+# written until this site has a real domain. Once it does, add:
+#   Sitemap: https://your-domain/sitemap.xml
