@@ -1,9 +1,0 @@
-# Phoenix Park Deer Tracker
-# Everything here is public and safe to index.
-
-User-agent: *
-Allow: /
-
-# There is no sitemap yet. A sitemap has to list absolute URLs, so it cannot be
-# written until this site has a real domain. Once it does, add:
-#   Sitemap: https://your-domain/sitemap.xml
