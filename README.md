@@ -1,6 +1,6 @@
 # Phoenix Park Deer Tracker
 
-**<__SITE_URL__>**
+**<https://deertracker.org>**
 
 A website for logging fallow deer sightings in Phoenix Park, Dublin. Visitors
 drop a pin on the map, say what they saw and how many, and it appears in the

@@ -9,6 +9,14 @@ Allow: /
 # not something worth having in a search index.
 Disallow: /api/
 
-# There is no sitemap yet. A sitemap has to list absolute URLs, so it cannot be
-# written until this site has a real domain. Once it does, add:
-#   Sitemap: https://your-domain/sitemap.xml
+# There is no sitemap yet. The reason used to be that a sitemap has to list
+# absolute URLs and this site had no domain; it has one now, so that reason has
+# expired and the only thing left is that nobody has written the file. Four
+# pages is few enough that a crawler finds them all by following links, so this
+# is a nicety rather than a gap. When somebody writes sitemap.xml, add:
+#   Sitemap: https://deertracker.org/sitemap.xml
+#
+# 这里还没有 sitemap。以前的理由是「sitemap 必须写绝对地址，而这个网站没有
+# 域名」—— 现在有域名了，那个理由已经不成立，剩下的唯一原因是还没人写这个
+# 文件。总共四个页面，爬虫顺着链接就能全部找到，所以这是锦上添花不是缺口。
+# 谁写了 sitemap.xml，就把上面那行加回来。
