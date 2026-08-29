@@ -4,7 +4,19 @@
 -- Lesson 12 and ran on your own machine in Lesson 13 — the only difference is
 -- that this copy lives on a server, so everybody sees the same rows.
 --
--- Load it with:
+-- ⚠ THIS FILE IS FOR AN EMPTY DATABASE ONLY.
+-- ⚠ 这个文件只能用在【空】数据库上。
+--
+-- It begins with `drop table if exists sightings`. Run it against the live
+-- database and every sighting anybody ever posted is gone, permanently.
+-- To change a database that already has rows in it, write a migration:
+-- see migrate-001-accounts.sql for what one looks like.
+--
+-- 它开头是 `drop table if exists sightings`。对着线上库跑一次，所有人发过的
+-- 每一条记录都会永久消失。要改一个已经有数据的库，写迁移文件：
+-- 看 migrate-001-accounts.sql 是什么样子。
+--
+-- Load it with (only on an empty database):
 --   wrangler d1 execute deer-tracker --remote --file=./schema.sql
 
 drop table if exists sightings;
@@ -22,6 +34,14 @@ create table sightings (
   count       integer not null check (count > 0 and count <= 200),
   note        text,
   author      text    not null,
+
+  -- Which ACCOUNT posted this, or null for a guest. Only a request carrying a
+  -- valid session can ever write it, which is what makes it proof of identity
+  -- rather than a label. sightings/[id].js compares this - never `author` - to
+  -- decide who may delete the row.
+  -- 是哪个【账号】发的；游客为 null。只有带着有效 session 的请求才写得进去，
+  -- 这正是它能作为身份证据、而 author 只是标签的原因。
+  author_user text,
 
   -- A compressed photo as a data: URI, or null. The browser shrinks these to
   -- 550px before upload, so they are tens of kilobytes rather than megabytes.

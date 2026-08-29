@@ -15,7 +15,7 @@
     <meta property="og:locale" content="en_IE" />
     <meta property="og:title" content="Phoenix Park Deer Tracker" />
     <meta property="og:description" content="Log and browse fallow deer sightings in Phoenix Park, Dublin. A student-built map of where the herd has been seen — add your own." />
-    <meta property="og:image" content="https://deer-tracker-983.pages.dev/assets/hero-1600.jpg" />
+    <meta property="og:image" content="__SITE_URL__/assets/hero-1600.jpg" />
     <meta property="og:image:alt" content="Fallow deer in Phoenix Park, Dublin" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Phoenix Park Deer Tracker" />
@@ -291,7 +291,12 @@
       .legend-swatch.pin { background: #b13e3e; border-radius: 50%; }
       .legend-swatch.you { background: #2c7be5; border-radius: 50%; }
 
+      /* Leaflet draws its own zoom buttons into the top-left of the map
+         container. #map has z-index:1, which makes it a stacking context, so
+         this badge at z-index:5 paints above every Leaflet control no matter
+         what Leaflet asks for. Move the badge to the other corner. */
       .map-count {
+        right: 16px;
         position: absolute;
         top: 16px; left: 16px;
         z-index: 5;
@@ -686,7 +691,13 @@
 
       .rating-form p.help { color: var(--sage); font-size: 0.88rem; margin: 0 0 20px; }
 
+      /* flex:1 does not mean "this may become any size". Every flex item
+         starts at min-width:auto, which for an <input> is its intrinsic 129px,
+         so this row could not shrink below 391px and dragged the whole page
+         sideways on any phone narrower than that. min-width:0 removes the
+         floor; flex-wrap gives it somewhere to go. */
       .slider-row {
+        flex-wrap: wrap;
         display: flex;
         align-items: center;
         gap: 18px;
@@ -694,6 +705,7 @@
       }
 
       .slider-row input[type="range"] {
+        min-width: 0;
         flex: 1;
         -webkit-appearance: none;
         appearance: none;
@@ -1089,7 +1101,14 @@
         .map-wrap.expanded #map { height: 100%; }
 
         /* The LIVE badge sat on top of Leaflet's zoom buttons. */
-        .map-controls { top: auto; bottom: 12px; right: 12px; }
+        /* The legend and the controls were both z-index 5 and both pinned to
+           the bottom of a 360px screen, overlapping by 226px. The legend is
+           written later in the HTML, so it won a same-z-index tie and ate every
+           tap: "Find me" was blocked at 18 of 18 sample points. Legend to the
+           top, controls to the bottom, and the legend stops taking taps at all
+           in case anything else ever slides under it. */
+        .map-controls { top: auto; bottom: 12px; right: 12px; z-index: 6; }
+        .map-legend   { bottom: auto; top: 12px; left: 12px; pointer-events: none; }
 
         /* Hover cannot pause anything on a touch screen, so stop it moving
            by default and let the reader start it if they want to. */
@@ -1102,9 +1121,48 @@
            thing in the form and so the first thing to fall off the bottom. */
         .modal-mask { padding: 12px; align-items: flex-start; }
         .modal {
-          padding: 26px 20px 22px;
+          padding: 26px 20px 0;
           max-height: calc(100vh - 24px);
           max-height: calc(100dvh - 24px);
+
+          /* Capping the height stops the dialog falling off the screen, but on
+             its own it only makes Save *reachable after a scroll*. Measured at
+             360x640: dialog 616px, Save reachable=NO, after scrolling=YES.
+             Making the form the scrolling part and pinning Save to the bottom
+             edge means it is never off screen at all. min-height:0 is
+             load-bearing - a flex child refuses to shrink below its content
+             without it, so nothing would scroll. */
+          display: flex;
+          flex-direction: column;
+        }
+        .modal form {
+          overflow-y: auto;
+          min-height: 0;
+          flex: 1 1 auto;
+          padding-bottom: 6px;
+        }
+        .modal form button[type="submit"] {
+          position: sticky;
+          bottom: 0;
+          margin: 0 -20px;
+          padding: 15px 20px;
+          border-radius: 0 0 18px 18px;
+        }
+
+        /* Below this width a dialog floating in the middle is the wrong shape.
+           Thumbs live at the bottom of a phone; the top of a tall screen is the
+           hardest place on the device to reach. */
+        @media (max-width: 620px) {
+          .modal-mask { align-items: flex-end; padding: 0; }
+          .modal {
+            max-width: none;
+            max-height: 88dvh;
+            border-radius: 20px 20px 0 0;
+          }
+          .modal form button[type="submit"] {
+            padding-bottom: 22px;
+            border-radius: 0;
+          }
         }
 
         /* Thumb-sized target, and iOS refuses to zoom the page on focus at
@@ -1288,7 +1346,12 @@
           <button type="button" class="modal-close" id="modalClose" aria-label="Close">×</button>
           <h3>📝 Log a sighting</h3>
           <p class="modal-sub">Phoenix Park is home to fallow deer only — no other species roam here.</p>
-          <p class="modal-sub" style="margin-top:-12px;font-size:0.78rem">Posting as <strong data-ppdt-username>@you</strong> · this is the account you are signed in to</p>
+          <label class="fld">
+            <span class="cap">Your name</span>
+            <input type="text" id="authorInput" name="author" maxlength="24"
+                   autocomplete="nickname" placeholder="what should we call you?" />
+          </label>
+          <p class="modal-sub" id="authorNote" style="margin-top:-6px;font-size:0.78rem">Posting as a guest</p>
           <form id="sightingForm">
             <label>Photo (optional)
   <input type="file" id="photoInput" accept="image/*" />
@@ -1587,6 +1650,7 @@ function fromServer(row) {
     lng: row.lng,
     location: row.location,
     group: row.species,
+    isAccount: !!row.author_user,
     count: row.count,
     user: row.author,
     note: row.note || "",
@@ -2109,22 +2173,44 @@ function fromServer(row) {
       // Opening the form is where the sign-in is asked for, not the moment the
       // Save button is pressed. Filling in ten fields and only then being told
       // to go and make an account is how you lose somebody's sighting.
+      // There is no gate here any more. Most people who see a deer in this
+      // park will use this site once and never come back, and "create an
+      // account first" is where they leave. They may post as a guest; the name
+      // box below tells them what they get and what they do not.
       function openSightingForm() {
-        function show() { document.getElementById("sightingModal").classList.add("show"); }
-
-        // If partials.js failed to load there is no gate to pass; show the form
-        // and let the server turn it down, rather than making the button dead.
-        if (!window.PPDT_requireLogin) { show(); return; }
-
-        window.PPDT_requireLogin("login").then(function (handle) {
-          if (handle) show();      // closed the sign-in box: they meant "not now"
-        });
+        document.getElementById("sightingModal").classList.add("show");
+        syncAuthorField();
       }
+
+      // The name box has two jobs depending on who is asking, so it has to be
+      // rebuilt every time the form opens and every time somebody signs in or
+      // out. Signed in: the name is fixed and shown, not editable - the server
+      // takes it from the cookie and ignores anything typed. Guest: they may
+      // type one, and we say plainly that it is not reserved.
+      function syncAuthorField() {
+        var input = document.getElementById("authorInput");
+        var note = document.getElementById("authorNote");
+        if (!input || !note) return;
+        if (window.PPDT_USER) {
+          input.value = window.PPDT_USER;
+          input.disabled = true;
+          note.innerHTML = "Posting as <strong>" + esc(window.PPDT_USER) +
+            "</strong> \u00b7 this name is yours, nobody else can use it";
+        } else {
+          input.disabled = false;
+          if (!input.value) input.value = localStorage.getItem("ppdt_guest_name") || "";
+          note.innerHTML = "Posting as a guest \u00b7 " +
+            "<button type=\"button\" class=\"linkish\" onclick=\"if(window.PPDT_requireLogin)window.PPDT_requireLogin('login')\">" +
+            "sign in</button> if you want this name kept for you";
+        }
+      }
+      window.syncAuthorField = syncAuthorField;
       window.openSightingForm = openSightingForm;
 
       // Signing in or out changes whose sightings carry a Remove button and
       // which rows count as yours, so the feed has to be drawn again.
       document.addEventListener("ppdt:username", function () {
+        if (window.syncAuthorField) syncAuthorField();
         allSightings.forEach(function (s) {
           if (s.demo) return;
           s.mine = !!readKeys()[s.id] ||
@@ -2203,6 +2289,16 @@ function fromServer(row) {
         const ll = capturedGps
           ? [capturedGps.lat, capturedGps.lng]
           : jitter(locationAnchors[loc] || PARK_CENTER, 90);
+        var authorBox = document.getElementById("authorInput");
+        var typedName = authorBox ? authorBox.value.trim() : "";
+        if (!window.PPDT_USER && typedName) {
+          // Remembered on this browser only, as a convenience. It is not an
+          // identity: the server never trusts it for anything except what to
+          // print under the sighting, and it refuses it outright if it is the
+          // name of an account.
+          try { localStorage.setItem("ppdt_guest_name", typedName); } catch (e) {}
+        }
+
         postSighting({
           photo: pendingPhoto,
           lat: ll[0],
@@ -2210,8 +2306,10 @@ function fromServer(row) {
           location: loc,
           species: document.getElementById("speciesInput").value,
           count: parseInt(document.getElementById("countInput").value, 10),
-          // No author field: the server takes it from the session cookie. Any
-          // name sent from here would be a name the sender chose for himself.
+          // Sent, but only used when there is no session. Signed in, the server
+          // takes the name from the cookie and throws this away - a name sent
+          // from here is a name the sender chose for himself.
+          author: typedName,
           note: document.getElementById("noteInput").value,
           // The date the visitor chose. Today -> now; an earlier day -> midday,
           // because <input type="date"> gives no time of day.
