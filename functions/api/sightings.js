@@ -48,7 +48,8 @@ function bad(message) {
 export async function onRequestGet({ env }) {
   try {
     const { results } = await env.DB.prepare(
-      `select id, seen_at, lat, lng, location, species, count, note, author, photo
+      `select id, seen_at, lat, lng, location, species, count, note, author,
+              author_user, photo
        from sightings
        order by seen_at desc
        limit 500`
@@ -63,12 +64,11 @@ export async function onRequestGet({ env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  // Before anything else: is this a real account? Doing this first means an
-  // anonymous request never reaches the rest of the handler at all.
+  // Most people who see a deer in Phoenix Park will use this site once and
+  // never come back. Making them create an account first is where they leave,
+  // and a sightings site with no sightings is not a better site for being
+  // tidy. So there are two ways in, and the server has to tell them apart.
   const user = await currentUser(request, env);
-  if (!user) {
-    return json({ error: "Sign in to log a sighting." }, 401);
-  }
 
   let body;
   try {
@@ -108,12 +108,48 @@ export async function onRequestPost({ request, env }) {
     photo = body.photo;
   }
 
-  // The author is whoever the cookie says it is, and body.author is ignored
-  // entirely. It used to be taken from the request, which meant posting as
-  // somebody else was a matter of editing one line of JSON — the handle was
-  // decoration, not identity. The name was checked at signup, so it needs no
-  // sanitising here: it can only be 3-20 characters of [a-zA-Z0-9._-].
-  const author = display(user);
+  // Who posted this, and how much that is worth.
+  //
+  //   signed in -> authorUser holds the account. Only a request carrying that
+  //                account's session can ever write it, so it is proof.
+  //   guest     -> authorUser stays null. The name is just a label somebody
+  //                typed, and the row is owned by whoever holds its delete key.
+  //
+  // These two are never mixed. The column itself says which rule applies, and
+  // sightings/[id].js reads it to decide who may delete the row.
+  let author;
+  let authorUser = null;
+
+  if (user) {
+    // The name was checked at signup, so it needs no sanitising here: it can
+    // only be 3-20 characters of [a-zA-Z0-9._-]. body.author is ignored.
+    author = display(user);
+    authorUser = user;
+  } else {
+    const typed = String(body.author || "").trim().replace(/^@+/, "");
+    const cleaned = typed.replace(/[^a-zA-Z0-9._\- ]/g, "").slice(0, 24).trim();
+    if (cleaned.length < 2) {
+      return bad("Put a name in, so people know who saw it. Two characters is enough.");
+    }
+
+    // A registered name belongs to the person who registered it. Letting a
+    // guest wear it would put two different people under one name in the feed,
+    // and would have made "who may delete this" unanswerable. This check has
+    // to be here rather than in the page: anything on the internet can POST
+    // to this endpoint without ever loading the form.
+    const taken = await env.DB
+      .prepare("select 1 from users where username_lc = ?")
+      .bind(cleaned.toLowerCase())
+      .first();
+    if (taken) {
+      return json({
+        error: "That name belongs to an account. Pick another one, or sign in.",
+        nameTaken: true,
+      }, 409);
+    }
+
+    author = cleaned;   // no leading @ - the @ is what an account looks like
+  }
 
   // Trust the server's clock for "when the row was created", but let the person
   // say when they saw the deer - back-dating is a real thing people do.
@@ -127,12 +163,12 @@ export async function onRequestPost({ request, env }) {
   try {
     await env.DB.prepare(
       `insert into sightings
-         (id, seen_at, lat, lng, location, species, count, note, author, photo,
-          delete_key, created_at)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, seen_at, lat, lng, location, species, count, note, author,
+          author_user, photo, delete_key, created_at)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       id, seenAt.toISOString(), lat, lng, body.location, body.species, count,
-      note || null, author, photo, deleteKey, now.toISOString()
+      note || null, author, authorUser, photo, deleteKey, now.toISOString()
     ).run();
   } catch (err) {
     // A CHECK constraint failing lands here. The message names the rule, which
@@ -146,6 +182,7 @@ export async function onRequestPost({ request, env }) {
   // what was actually written.
   return json({
     id: id, delete_key: deleteKey, author: author,
+    is_account: !!authorUser,
     seen_at: seenAt.toISOString(),
   }, 201);
 }

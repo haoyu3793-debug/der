@@ -15,7 +15,7 @@
 // your phone left you unable to remove something you had posted from your
 // laptop — your own sighting, and no way to take it back.
 
-import { currentUser, display } from "../_auth.js";
+import { currentUser } from "../_auth.js";
 
 function json(body, status) {
   return new Response(JSON.stringify(body), {
@@ -37,11 +37,23 @@ export async function onRequestDelete({ params, request, env }) {
 
   try {
     const row = await env.DB.prepare(
-      "select delete_key, author from sightings where id = ?"
+      "select delete_key, author_user from sightings where id = ?"
     ).bind(id).first();
 
     const holdsKey = !!(key && row && row.delete_key === key);
-    const isAuthor = !!(user && row && row.author === display(user));
+
+    // Compare the ACCOUNT, never the displayed name. row.author is a string
+    // somebody typed; a session is backed by a password. Both can be the text
+    // "@velvetmeadow81", and === will say they are equal - correctly, they are
+    // equal strings. What is wrong is treating equal strings as the same
+    // person. Registering a name that already appeared on old rows used to
+    // hand you those rows.
+    //
+    // author_user is null on every guest row and on every row posted before
+    // accounts existed, so those match nobody and fall back to the delete key.
+    // That is the right outcome: they were never owned by an account, so they
+    // cannot start being owned by one now.
+    const isAuthor = !!(user && row && row.author_user === user);
 
     // Same answer whether the row does not exist or neither proof matched.
     // Telling the difference would let someone probe which ids are real.

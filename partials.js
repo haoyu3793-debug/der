@@ -188,6 +188,15 @@
       '.user-caret { opacity: 0.45; font-size: 0.62rem; }' +
 
       /* The little menu under the pill. */
+      /* right:0 anchors the menu's right edge to the pill's right edge, so
+         the menu grows leftwards. On a phone the navbar wraps and the pill
+         lands at the left of its own row, which pushed 33px of the menu off
+         the left of the screen - and content that overflows to the left can
+         never be scrolled to. */
+      '@media (max-width: 720px) { .user-menu {' +
+      '  right: auto; left: 0; min-width: 0;' +
+      '  width: max-content; max-width: calc(100vw - 24px);' +
+      '} }' +
       '.user-menu {' +
         ' position: absolute; top: calc(100% + 8px); right: 0; z-index: 400;' +
         ' min-width: 176px; padding: 6px;' +
@@ -263,7 +272,11 @@
         ' outline: none; border-color: #2d5a3d;' +
         ' box-shadow: 0 0 0 3px rgba(45,90,61,0.12);' +
       '}' +
-      '.auth-hint { margin: -6px 0 14px; font-size: 0.74rem; color: #8a9a84; }' +
+      /* #8a9a84 on #faf7f0 measures 2.79:1. AA asks for 4.5:1. This is the
+         only place the username rule is stated, and .auth-note below it is the
+         sentence saying a password can never be recovered - the two least
+         legible strings on the page were the two most consequential. */
+      '.auth-hint { margin: -6px 0 14px; font-size: 0.8rem; color: #5c6b57; }' +
       '.auth-hint[hidden] { display: none; }' +
       '.auth-error {' +
         ' margin: 0 0 14px; padding: 10px 12px; border-radius: 8px;' +
@@ -279,7 +292,7 @@
       '.auth-go:hover { background: #1f3d2a; }' +
       '.auth-go:disabled { opacity: 0.65; cursor: wait; }' +
       '.auth-note {' +
-        ' margin: 16px 0 0; font-size: 0.74rem; line-height: 1.55; color: #8a9a84;' +
+        ' margin: 16px 0 0; font-size: 0.8rem; line-height: 1.55; color: #3f5c48;' +
       '}' +
       '@media (max-width: 720px) {' +
         ' .auth-mask { align-items: flex-start; padding: 12px; }' +

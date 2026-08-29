@@ -7,12 +7,14 @@ import {
 } from "../_auth.js";
 
 export async function onRequestPost({ request, env }) {
-  // Logging in again over a live session would leave the old session row
-  // behind with nothing pointing at it.
-  const already = await currentUser(request, env);
-  if (already) {
-    return json({ username: already, handle: display(already), already: true });
-  }
+  // A login request carries a username and a password, and this endpoint's
+  // only job is to check them. The previous version returned early whenever a
+  // session cookie was present - so on a shared computer somebody could type
+  // their own name and their own password, get 200 OK, and be signed in as
+  // whoever used the browser before them. The credentials were never read:
+  // request.json() is below this point.
+  //
+  // Read them first. Always. Then end whatever session was here.
 
   let body;
   try {
